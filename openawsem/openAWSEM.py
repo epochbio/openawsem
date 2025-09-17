@@ -23,18 +23,22 @@ import textwrap
 import shutil
 from pathlib import Path
 import openawsem.helperFunctions
-import openawsem.functionTerms
 
 __author__ = 'Carlos Bueno'
 
 # Application location
 __location__ = Path(__file__).resolve().parent
 
+# Data path location in helperFunctions set to data_path
 data_path = openawsem.helperFunctions.DataPath(default_location = __location__,
                                                default_config_path = __location__ / 'config.ini', 
                                                custom_config_path = Path.home() / '.awsem' / 'config.ini')
 
+# a leading underscore in a variable name is a convention that indicates the variable is 
+# intended for internal use within a class, module, or function.
+# These residues are isoprpyl, glycine (no CB) and proline (no H)
 _AWSEMresidues = ['IPR', 'IGL', 'NGP']
+# contains Atom types and residue names with the associated atom types
 xml = data_path.topology/'awsem.xml'
 
 three_to_one = {'ALA':'A', 'ARG':'R', 'ASN':'N', 'ASP':'D', 'CYS':'C',

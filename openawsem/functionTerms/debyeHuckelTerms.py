@@ -1,14 +1,29 @@
 try:
-    from openmm.app import *
-    from openmm import *
-    from openmm.unit import *
+    from openmm import CustomBondForce
 except ModuleNotFoundError:
-    from simtk.openmm.app import *
-    from simtk.openmm import *
-    from simtk.unit import *
+    from simtk.openmm import CustomBondForce
 import numpy as np
+from typing import List, Tuple, Union, Optional, Dict, Any
+from openawsem.openAWSEM import OpenMMAWSEMSystem
 
-def debye_huckel_term(self, k_dh=4.15*4.184, forceGroup=30, screening_length=1.0, chargeFile=None,periodic=False):
+
+def debye_huckel_term(self, 
+                      k_dh: float = 4.15*4.184, 
+                      forceGroup: int = 30, 
+                      screening_length: float = 1.0, 
+                      chargeFile: Optional[str] = None):
+        """
+        Calculate the Debye-Huckel term for electrostatic interactions between charged residues.
+
+        Args:
+            k_dh: The Debye-Huckel prefactor. Default is 4.15*4.184 (kcal/mol).
+            forceGroup: The force group to which this force will be added. Default is 30.
+            screening_length: The screening length for electrostatic interactions (in nanometers). Default is 1.0 nm.
+            chargeFile: The path to the file containing charge information. If None, the charges will be determined based on residue type. Default is None.
+
+        Returns:
+            A CustomBondForce object representing the Debye-Huckel interactions.
+        """
         # screening_length (in the unit of nanometers)
         print("Debye Huckel term is ON")
         k_dh *= self.k_awsem*0.1
@@ -18,14 +33,6 @@ def debye_huckel_term(self, k_dh=4.15*4.184, forceGroup=30, screening_length=1.0
         dh = CustomBondForce(f"{k_dh}*charge_i*charge_j/r*exp(-{k_screening}*r/{screening_length})")
         dh.addPerBondParameter("charge_i")
         dh.addPerBondParameter("charge_j")
-
-         # Add Periodic Boundary Condition. 02082024 Rebekah Added --- Start
-        if periodic:
-            dh.setUsesPeriodicBoundaryConditions(True)
-            is_periodic=dh.usesPeriodicBoundaryConditions()
-            print("\ndebye_huckel_term is in PBC",is_periodic)
-         # 02082024 Rebekah Added --- End
-
         structure_interactions_dh = []
         if chargeFile is None:
             for i in range(self.nres):
@@ -65,7 +72,6 @@ def debye_huckel_term(self, k_dh=4.15*4.184, forceGroup=30, screening_length=1.0
                         structure_interactions_dh.append([cb_atom_i, cb_atom_j, [charge_i, charge_j]])
         for structure_interaction_dh in structure_interactions_dh:
             dh.addBond(*structure_interaction_dh)
-
         dh.setForceGroup(forceGroup)
         return dh
 

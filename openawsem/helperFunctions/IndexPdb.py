@@ -15,13 +15,24 @@
 #	print
 #	exit()
 
-from Bio import pairwise2
+from Bio.Align import PairwiseAligner
 from Bio.PDB.PDBParser import PDBParser
 from Bio import SeqIO
 import os
+from typing import List, Tuple
 
-def three2one(prot):
-    """ translate a protein sequence from 3 to 1 letter code"""
+
+def three2one(prot: list
+              ) -> str:
+    """
+    Translate a protein sequence from 3-letter to 1-letter code.
+
+    Args:
+        prot: A list representing the protein sequence in 3-letter code.
+
+    Returns:
+        A string representing the protein sequence in 1-letter code.
+    """
 
     code = {"GLY" : "G", "ALA" : "A", "LEU" : "L", "ILE" : "I",
             "ARG" : "R", "LYS" : "K", "MET" : "M", "CYS" : "C",
@@ -36,7 +47,20 @@ def three2one(prot):
 
     return newprot
 
-def getListOfValidAlignments(alignments, pdb_indexes):
+
+def getListOfValidAlignments(alignments: list, 
+                             pdb_indexes: list
+                             ) -> list:
+    """
+    Get a list of indices for valid alignments.
+
+    Args:
+        alignments: A list of tuples, where each tuple contains two aligned sequences.
+        pdb_indexes: A list of integers representing the PDB indexes of the residues.
+
+    Returns:
+        A list of integers representing the indices of the valid alignments in the input list.
+    """
     ialigns = []
     for i in range(0, len(alignments)):
         alignment = alignments[i]
@@ -65,13 +89,36 @@ def getListOfValidAlignments(alignments, pdb_indexes):
                 ialigns.append(i)
     return ialigns
 
-def getFastaSequance(fasta_file):
+
+def getFastaSequence(fasta_file: str
+                     ) -> str:
+    """Reads a FASTA file and returns the sequence as a string.
+
+    Args:
+        fasta_file (str): The path to the FASTA file.
+
+    Returns:
+        str: The sequence extracted from the FASTA file.
+    """
     inFASTA=open(fasta_file, 'r')
     inseq=SeqIO.read(inFASTA,'fasta')
 
     return str(inseq.seq)
 
-def getPdbSequance(pdb_file, chain_id):
+
+def getPdbSequance(pdb_file: str, 
+                   chain_id: str
+                   ) -> Tuple[str, List[int]]:
+    """
+    Extracts the sequence and residue numbers from a PDB file for a specific chain.
+
+    Args:
+        pdb_file: The path to the PDB file.
+        chain_id: The identifier of the chain to extract the sequence from.
+
+    Returns:
+        A tuple containing the sequence of residues in one-letter code and a list of residue numbers.
+    """
     pdb_indexes = []
     pdb_sequance = []
 
@@ -103,7 +150,20 @@ def getPdbSequance(pdb_file, chain_id):
 
     return pdb_seq, pdb_indexes
 
-def getIndexArray(alignment, pdb_indexes):
+
+def getIndexArray(alignment: tuple, 
+                  pdb_indexes: list
+                  ) -> list:
+    """Generates an array of indices mapping the alignment to PDB indexes.
+
+    Args:
+        alignment: A tuple containing two aligned sequences (FASTA sequence and PDB sequence).
+        pdb_indexes: A list of integers representing the PDB indexes of the residues.
+
+    Returns:
+        A list of lists, where each inner list contains the index in the FASTA sequence,
+        the corresponding index in the PDB sequence (or -1 if not aligned), and the residue.
+    """
     alseq_fasta = alignment[0]
     alseq_pdb = alignment[1]
 
@@ -121,7 +181,19 @@ def getIndexArray(alignment, pdb_indexes):
 
     return index_array
 
-def writeIndexFile(fasta_file, pdb_file, index_file, chain_id):
+
+def writeIndexFile(fasta_file: str, 
+                   pdb_file: str, 
+                   index_file: str, 
+                   chain_id: str):
+    """Writes an index file mapping the residues of a FASTA sequence to a PDB file.
+
+    Args:
+        fasta_file: The path to the FASTA file containing the protein sequence.
+        pdb_file: The path to the PDB file containing the protein structure.
+        index_file: The path where the index file will be written.
+        chain_id: The chain identifier in the PDB file to be indexed.
+    """
 #	from Bio import pairwise2
 #	from Bio.PDB.PDBParser import PDBParser
 #	from Bio import SeqIO
@@ -141,7 +213,7 @@ def writeIndexFile(fasta_file, pdb_file, index_file, chain_id):
     shift = 0
     index_list = []
 
-    fasta_seq = getFastaSequance(fasta_file)
+    fasta_seq = getFastaSequence(fasta_file)
     pdb_seq, pdb_indexes = getPdbSequance(pdb_file, chain_id)
 
     # Do a check on pdb_indexes, if some residue is in wrong order. for example in PDB 5cxv, line 3383
@@ -194,7 +266,13 @@ def writeIndexFile(fasta_file, pdb_file, index_file, chain_id):
                 break
             index_list.append([ i, pdb_indexes[i], fasta_seq[i] ])
     else:
-        alignments = pairwise2.align.globalms(fasta_seq, pdb_seq, 2, -1, -0.5, -0.1)
+        aligner = PairwiseAligner()
+        aligner.mode = 'global'  # for global alignment
+        aligner.match_score = 2
+        aligner.mismatch_score = -1
+        aligner.open_gap_score = -0.5
+        aligner.extend_gap_score = -0.1
+        alignments = aligner.align(fasta_seq, pdb_seq)
         #print alignments
         #print len(alignments)
         #print

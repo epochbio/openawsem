@@ -6,7 +6,15 @@ from .Pdb2Gro import pdb2gro
 
 __author__ = 'Wei Lu'
 
-def create_single_memory(pdb, chain):
+
+def create_single_memory(pdb: str, chain: str):
+    """Create a single memory file for a given PDB and chain.
+
+    Args:
+        pdb: The path to the PDB file.
+        chain: The chain identifier. If '-1', all chains will be selected.
+
+    """
     if not os.path.exists(pdb):
         print("ERROR: the pdb you specified is not exist")
         exit()
@@ -33,6 +41,7 @@ def create_single_memory(pdb, chain):
         for (chain_name, chain_start_residue_index, seq_length) in seq_data:
             # print(f"write chain {chain_name}")
             out.write(f"{name}_{chain_name}.gro {chain_start_residue_index} 1 {seq_length} 20\n")   # residue index in Gro always start at 1.
+
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser(

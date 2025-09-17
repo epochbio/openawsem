@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
+try:
+    from openmm import LangevinIntegrator, Platform, CustomIntegrator
+    from openmm.app import Simulation, PDBReporter, DCDReporter, CheckpointReporter, StateDataReporter
+    from openmm.unit import picosecond, picoseconds, femtoseconds, kelvin
+except ModuleNotFoundError:
+    from simtk.openmm import LangevinIntegrator, Platform, CustomIntegrator
+    from simtk.openmm.app import Simulation, PDBReporter, DCDReporter, CheckpointReporter, StateDataReporter
+    from simtk.unit import picosecond, picoseconds, femtoseconds, kelvin
+
 import os
 import sys
-import random
 import time
-from random import seed, randint
 import argparse
-import platform
-from datetime import datetime
-from time import sleep
-import fileinput
 import importlib.util
 
 from openawsem import *
@@ -21,6 +24,11 @@ cd = os.chdir
 
 
 def run(args):
+    """Run the simulation with the given arguments.
+
+    Args:
+        args (argparse.Namespace): The command line arguments parsed by argparse.
+    """
     simulation_platform = args.platform
     platform = Platform.getPlatformByName(simulation_platform)
     if simulation_platform == "CPU":
@@ -205,6 +213,7 @@ def run(args):
     else:
         additional_cmd = ""
     os.system(f"{sys.executable} mm_analyze.py {args.protein} -t {os.path.join(toPath, 'movie.dcd')} --subMode {args.subMode} -f {args.forces} {analysis_fasta} {additional_cmd} -c {chain}")
+
 
 def main():
     # from run_parameter import *

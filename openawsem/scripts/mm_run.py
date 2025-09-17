@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
+try:
+    from openmm import LangevinIntegrator, Platform, CustomIntegrator
+    from openmm.app import Simulation, PDBReporter, DCDReporter, StateDataReporter, CheckpointReporter
+    from openmm.unit import picosecond, picoseconds, femtoseconds, kelvin
+except ModuleNotFoundError:
+    from simtk.openmm import LangevinIntegrator, Platform, CustomIntegrator
+    from simtk.openmm.app import Simulation, PDBReporter, DCDReporter, StateDataReporter, CheckpointReporter
+    from simtk.unit import picosecond, picoseconds, femtoseconds, kelvin
+
 import os
 import sys
-import random
 import time
 from random import seed, randint
 import argparse
-import platform
-from datetime import datetime
-from time import sleep
-import fileinput
 import importlib.util
 
 from openawsem import *
@@ -21,6 +25,11 @@ cd = os.chdir
 
 
 def run(args):
+    """Run the simulation with the given arguments.
+
+    Args:
+        args (argparse.Namespace): The command line arguments parsed by argparse.
+    """
     simulation_platform = args.platform
     platform = Platform.getPlatformByName(simulation_platform)
     if simulation_platform == "CPU":
@@ -81,7 +90,8 @@ def run(args):
     # start simulation
     collision_rate = 5.0 / picoseconds
     checkpoint_file = "checkpnt.chk"
-    checkpoint_reporter_frequency = 10000
+    # write a checkpint file every 1000 steps
+    checkpoint_reporter_frequency = 1000 
 
 
 
@@ -146,7 +156,8 @@ def run(args):
     print("reporter_frequency", reporter_frequency)
     simulation.reporters.append(StateDataReporter(stdout, reporter_frequency, step=True, potentialEnergy=True, temperature=True))  # output energy and temperature during simulation
     simulation.reporters.append(StateDataReporter(os.path.join(toPath, "output.log"), reporter_frequency, step=True, potentialEnergy=True, temperature=True)) # output energy and temperature to a file
-    simulation.reporters.append(PDBReporter(os.path.join(toPath, "movie.pdb"), reportInterval=reporter_frequency))  # output PDBs of simulated structures
+    # do not write a .pdb movie
+    # simulation.reporters.append(PDBReporter(os.path.join(toPath, "movie.pdb"), reportInterval=reporter_frequency))  # output PDBs of simulated structures
     simulation.reporters.append(DCDReporter(os.path.join(toPath, "movie.dcd"), reportInterval=reporter_frequency, append=True))  # output PDBs of simulated structures
     # simulation.reporters.append(DCDReporter(os.path.join(args.to, "movie.dcd"), 1))  # output PDBs of simulated structures
     # simulation.reporters.append(PDBReporter(os.path.join(args.to, "movie.pdb"), 1))  # output PDBs of simulated structures
@@ -188,19 +199,20 @@ def run(args):
         out.write(str(time_taken)+"\n")
 
     # accompany with analysis run
-    simulation = None
-    time.sleep(10)
-    os.chdir(pwd)
-    print(os.getcwd())
-    if args.fasta == "":
-        analysis_fasta = ""
-    else:
-        analysis_fasta = f"--fasta {args.fasta}"
-    if args.includeLigands:
-        additional_cmd = "--includeLigands"
-    else:
-        additional_cmd = ""
-    os.system(f"{sys.executable} mm_analyze.py {args.protein} -t {os.path.join(toPath, 'movie.dcd')} --subMode {args.subMode} -f {args.forces} {analysis_fasta} {additional_cmd} -c {chain}")
+    # simulation = None
+    # time.sleep(10)
+    # os.chdir(pwd)
+    # print(os.getcwd())
+    # if args.fasta == "":
+    #    analysis_fasta = ""
+    #else:
+    #    analysis_fasta = f"--fasta {args.fasta}"
+    # if args.includeLigands:
+    #   additional_cmd = "--includeLigands"
+    #else:
+    #    additional_cmd = ""
+    #os.system(f"{sys.executable} mm_analyze.py {args.protein} -t {os.path.join(toPath, 'movie.dcd')} --subMode {args.subMode} -f {args.forces} {analysis_fasta} {additional_cmd} -c {chain}")
+
 
 def main():
     # from run_parameter import *

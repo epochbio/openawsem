@@ -25,6 +25,10 @@ try:
 except ModuleNotFoundError:
     from simtk.openmm.app import PDBFile
 
+import textwrap
+from Bio.PDB.PDBParser import PDBParser
+from typing import List, Optional, Tuple, Dict, Any
+
 # compute cross Q for every pdb pair in one folder
 # parser = argparse.ArgumentParser(description="Compute cross q")
 # parser.add_argument("-m", "--mode",
@@ -32,16 +36,50 @@ except ModuleNotFoundError:
 
 # args = parser.parse_args()
 
-def getFromTerminal(CMD):
+def getFromTerminal(CMD: str
+                    ) -> str:
+    """Execute a command in the terminal and return its output.
+
+    Args:
+        CMD (str): The command to be executed.
+
+    Returns:
+        str: The output from the command.
+    """
     return subprocess.Popen(CMD,stdout=subprocess.PIPE,shell=True).communicate()[0].decode()
 
 
-def expand_grid(dictionary):
+def expand_grid(dictionary: dict
+                ) -> pd.DataFrame:
+    """Generate a dataframe from all combinations of provided dictionary values.
+
+    Args:
+        dictionary (dict): A dictionary where the key is the column name and the value is a list of possible values for that column.
+
+    Returns:
+        pd.DataFrame: A dataframe containing all possible combinations of values from the input dictionary.
+    """
     return pd.DataFrame([row for row in product(*dictionary.values())],
                         columns=dictionary.keys())
 
 
-def duplicate_pdb(From, To, offset_x=0, offset_y=0, offset_z=0, new_chain="B"):
+def duplicate_pdb(From: str, 
+                  To: str, 
+                  offset_x: float = 0, 
+                  offset_y: float = 0, 
+                  offset_z: float = 0, 
+                  new_chain: str = "B"):
+    """
+    Duplicate a PDB file with optional translation and chain renaming.
+
+    Args:
+        From (str): The file path of the original PDB file to duplicate.
+        To (str): The file path where the duplicated PDB file will be saved.
+        offset_x (float, optional): The offset to be added to the x-coordinate of each atom. Defaults to 0.
+        offset_y (float, optional): The offset to be added to the y-coordinate of each atom. Defaults to 0.
+        offset_z (float, optional): The offset to be added to the z-coordinate of each atom. Defaults to 0.
+        new_chain (str, optional): The new chain identifier to be used for all atoms in the duplicated PDB file. Defaults to "B".
+    """
     with open(To, "w") as out:
         with open(From, "r") as f:
             for line in f:
@@ -76,7 +114,22 @@ def duplicate_pdb(From, To, offset_x=0, offset_y=0, offset_z=0, new_chain="B"):
                 a = "".join(tmp)
                 out.write(a)
 
-def compute_native_contacts(coords, MAX_OFFSET=4, DISTANCE_CUTOFF=9.5):
+
+def compute_native_contacts(coords: np.ndarray, 
+                            MAX_OFFSET: int = 4, 
+                            DISTANCE_CUTOFF: float = 9.5
+                            ) -> np.ndarray:
+    """
+    Compute a matrix of native contacts based on given coordinates and cutoff parameters.
+
+    Args:
+        coords (np.ndarray): An array of coordinates for which native contacts are to be computed.
+        MAX_OFFSET (int, optional): The maximum sequence separation between residues that form a native contact. Defaults to 4.
+        DISTANCE_CUTOFF (float, optional): The distance cutoff under which two points are considered in contact. Defaults to 9.5.
+
+    Returns:
+        np.ndarray: A boolean array where True indicates a native contact between residues.
+    """
     native_coords = np.array(coords)
     a= native_coords[:,np.newaxis]
     dis = np.sqrt(np.sum((a - native_coords)**2, axis=2))
@@ -90,7 +143,22 @@ def compute_native_contacts(coords, MAX_OFFSET=4, DISTANCE_CUTOFF=9.5):
     native_contacts = dis < DISTANCE_CUTOFF
     return native_contacts.astype("int")
 
-def compute_contacts(coords, native_contacts, DISTANCE_CUTOFF=9.5):
+
+def compute_contacts(coords: np.ndarray, 
+                     native_contacts: np.ndarray, 
+                     DISTANCE_CUTOFF: float = 9.5
+                     ) -> np.ndarray:
+    """
+    Compute the contacts between coordinates using a distance cutoff and a mask for native contacts.
+
+    Args:
+        coords (np.ndarray): An array of coordinates for which contacts are to be computed.
+        native_contacts (np.ndarray): A boolean array where True indicates native contacts.
+        DISTANCE_CUTOFF (float, optional): The distance cutoff under which two points are considered in contact. Defaults to 9.5.
+
+    Returns:
+        np.ndarray: An array representing the sum of contacts for each coordinate point.
+    """
     native_coords = np.array(coords)
     a= native_coords[:,np.newaxis]
     dis = np.sqrt(np.sum((a - native_coords)**2, axis=2))
@@ -98,7 +166,20 @@ def compute_contacts(coords, native_contacts, DISTANCE_CUTOFF=9.5):
     constacts = constacts*native_contacts  # remove non native contacts
     return np.sum(constacts, axis=1).astype("float")
 
-def compute_localQ_init(MAX_OFFSET=4, DISTANCE_CUTOFF=9.5):
+
+def compute_localQ_init(MAX_OFFSET: int = 4, 
+                        DISTANCE_CUTOFF: float = 9.5
+                        ) -> np.ndarray:
+    """
+    Initialize the computation of local quality (Q) by creating a native contacts table.
+
+    Args:
+        MAX_OFFSET (int): The maximum sequence separation between residues that form a native contact.
+        DISTANCE_CUTOFF (float): The distance cutoff under which a pair of residues are considered to be in contact.
+
+    Returns:
+        np.ndarray: A numpy array representing the native contacts table.
+    """
     from pathlib import Path
     home = str(Path.home())
     struct_id = '2xov'
@@ -126,7 +207,26 @@ def compute_localQ_init(MAX_OFFSET=4, DISTANCE_CUTOFF=9.5):
 
     return native_contacts_table
 
-def compute_localQ(native_contacts_table, pre=".", ii=-1, MAX_OFFSET=4, DISTANCE_CUTOFF=9.5):
+
+def compute_localQ(native_contacts_table: np.ndarray, 
+                   pre: str = ".", 
+                   ii: int = -1, 
+                   MAX_OFFSET: int = 4, 
+                   DISTANCE_CUTOFF: float = 9.5
+                   ) -> pd.DataFrame:
+    """
+    Compute the local quality (Q) of the structure based on the native contacts table.
+
+    Args:
+        native_contacts_table: A numpy array representing the native contacts table.
+        pre: A string representing the prefix for the file path. Defaults to the current directory.
+        ii: An integer representing the index of the trajectory file. Defaults to -1.
+        MAX_OFFSET: An integer representing the maximum offset for contact calculation. Defaults to 4.
+        DISTANCE_CUTOFF: A float representing the distance cutoff for contact calculation. Defaults to 9.5.
+
+    Returns:
+        A pandas DataFrame containing the local Q values for each residue.
+    """
     native_contacts = np.sum(native_contacts_table, axis=1).astype("float")
     dump = read_lammps(os.path.join(pre, f"dump.lammpstrj.{ii}"), ca=False)
     localQ_list = []
@@ -138,7 +238,16 @@ def compute_localQ(native_contacts_table, pre=".", ii=-1, MAX_OFFSET=4, DISTANCE
     data.columns = ["Res" + str(i+1) for i in data.columns]
     data.to_csv(os.path.join(pre, f"localQ.{ii}.csv"), index=False)
 
-def readPMF_basic(pre):
+
+def readPMF_basic(pre: str) -> pd.DataFrame:
+    """Read basic PMF data from files matching the pattern in the given directory.
+
+    Args:
+        pre (str): The directory path where the PMF files are located.
+
+    Returns:
+        pd.DataFrame: A DataFrame containing the concatenated PMF data from all files.
+    """
     # perturbation_table = {0:"original", 1:"p_mem",
     #                       2:"m_mem", 3:"p_lipid",
     #                       4:"m_lipid", 5:"p_go",
@@ -179,7 +288,21 @@ def readPMF_basic(pre):
 
     return pd.concat(all_pmf_list).dropna().reset_index()
 
-def make_metadata_3(k=1000.0, temps_list=["450"], i=-1, biasLow=None, biasHigh=None):
+
+def make_metadata_3(k: float = 1000.0, 
+                    temps_list: List[str] = ["450"], 
+                    i: int = -1, 
+                    biasLow: Optional[float] = None, 
+                    biasHigh: Optional[float] = None):
+    """Generate a metadata file for simulations.
+
+    Args:
+        k (float): The force constant for the metadata. Defaults to 1000.0.
+        temps_list (List[str]): A list of temperatures to be included in the metadata. Defaults to ["450"].
+        i (int): The index for data directory naming. Defaults to -1.
+        biasLow (Optional[float]): The lower bound for the bias to be considered. If None, no lower bound is applied. Defaults to None.
+        biasHigh (Optional[float]): The upper bound for the bias to be considered. If None, no upper bound is applied. Defaults to None.
+    """
     print("make metadata")
     cwd = os.getcwd()
     files = glob.glob(f"../data_{i}/*")
@@ -203,7 +326,20 @@ def make_metadata_3(k=1000.0, temps_list=["450"], i=-1, biasLow=None, biasHigh=N
                 out.write(target)
 
 
-def readPMF(pre, is2d=False, force_list=["0.0", "0.1", "0.2"]):
+def readPMF(pre: str, 
+            is2d: bool = False, 
+            force_list: List[str] = ["0.0", "0.1", "0.2"]
+            ) -> pd.DataFrame:
+    """Reads PMF (Potential of Mean Force) data from files matching the pattern based on the given parameters.
+
+    Args:
+        pre (str): The prefix for the file paths.
+        is2d (bool, optional): Flag to indicate if the data is 2-dimensional. Defaults to False.
+        force_list (List[str], optional): List of force values as strings to be considered. Defaults to ["0.0", "0.1", "0.2"].
+
+    Returns:
+        pd.DataFrame: A DataFrame containing the concatenated PMF data from all matching files.
+    """
     # perturbation_table = {0:"original", 1:"p_mem",
     #                       2:"m_mem", 3:"p_lipid",
     #                       4:"m_lipid", 5:"p_go",
@@ -249,7 +385,18 @@ def readPMF(pre, is2d=False, force_list=["0.0", "0.1", "0.2"]):
 
     return pd.concat(all_pmf_list).dropna().reset_index()
 
-def readPMF_2(pre, is2d=0, force_list=["0.0", "0.1", "0.2"]):
+
+def readPMF_2(pre: str, 
+              is2d: int = 0, 
+              force_list: List[str] = ["0.0", "0.1", "0.2"]
+              ) -> pd.DataFrame:
+    """Reads and processes PMF (Potential of Mean Force) data.
+
+    Args:
+        pre (str): The prefix for the file location.
+        is2d (int): Indicator of whether the PMF is 2-dimensional. Defaults to 0.
+        force_list (List[str]): List of force values as strings. Defaults to ["0.0", "0.1", "0.2"].
+    """
     if is2d:
         print("reading 2d pmfs")
     else:
@@ -266,7 +413,20 @@ def readPMF_2(pre, is2d=0, force_list=["0.0", "0.1", "0.2"]):
         all_data_list.append(tmp)
     return pd.concat(all_data_list).dropna().reset_index()
 
-def shrinkage(n=552, shrink_size=6, max_frame=2000, fileName="dump.lammpstrj"):
+
+def shrinkage(n: int = 552, 
+              shrink_size: int = 6, 
+              max_frame: int = 2000, 
+              fileName: str = "dump.lammpstrj"):
+    """
+    Reduces the size of a LAMMPS trajectory file by writing every `shrink_size` frames to a new file.
+
+    Args:
+        n (int): The number of atoms in the system. Defaults to 552.
+        shrink_size (int): The interval of frames to be written to the new file. Defaults to 6.
+        max_frame (int): The maximum number of frames to be written to the new file. Defaults to 2000.
+        fileName (str): The name of the original LAMMPS trajectory file. Defaults to "dump.lammpstrj".
+    """
     print("Shrinkage: size: {}, max_frame: {}".format(shrink_size, max_frame))
     bashCommand = "wc " + fileName
     process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE)
@@ -286,7 +446,16 @@ def shrinkage(n=552, shrink_size=6, max_frame=2000, fileName="dump.lammpstrj"):
                     count += 1
                     out.write(line)
 
-def compute_theta_for_each_helix(output="angles.csv", dumpName="../dump.lammpstrj.0"):
+
+def compute_theta_for_each_helix(output: str = "angles.csv", 
+                                 dumpName: str = "../dump.lammpstrj.0"):
+    """
+    Compute the angle theta for each helix in the system and write the results to a CSV file.
+
+    Args:
+        output: The name of the output CSV file where the angles will be stored. Defaults to "angles.csv".
+        dumpName: The path to the LAMMPS trajectory dump file. Defaults to "../dump.lammpstrj.0".
+    """
     print("This is for 2xov only")
     helices_list = [(94,114), (147,168), (171, 192), (200, 217), (226, 241), (250, 269)]
     atoms_all_frames = read_lammps(dumpName)
@@ -311,8 +480,15 @@ def compute_theta_for_each_helix(output="angles.csv", dumpName="../dump.lammpstr
             # helices_angles_all_frames.append(helices_angles)
 
 
+def check_and_correct_fragment_memory(fragFile: str = "fragsLAMW.mem") -> None:
+    """Check and correct the fragment memory file for errors.
 
-def check_and_correct_fragment_memory(fragFile="fragsLAMW.mem"):
+    This function checks the fragment memory file for duplicate or missing residues
+    and corrects the file by removing any problematic lines.
+
+    Args:
+        fragFile: The path to the fragment memory file. Defaults to "fragsLAMW.mem".
+    """
     with open("tmp.mem", "w") as out:
         with open(fragFile, "r") as f:
             for i in range(4):
@@ -363,7 +539,15 @@ def check_and_correct_fragment_memory(fragFile="fragsLAMW.mem"):
     os.system(f"mv {fragFile} fragsLAMW_back")
     os.system(f"mv tmp.mem {fragFile}")
 
-def compute_average_z(dumpFile, outFile):
+
+def compute_average_z(dumpFile: str, 
+                      outFile: str):
+    """Compute the average z-coordinate for each frame in a LAMMPS dump file and write to an output file.
+
+    Args:
+        dumpFile: The file path to the LAMMPS dump file.
+        outFile: The file path where the average z-coordinates will be written.
+    """
     # input dump, output z.dat
     z_list = []
     with open(outFile, "w") as f:
@@ -374,7 +558,15 @@ def compute_average_z(dumpFile, outFile):
             z_list.append(z)
             f.write(str(z)+"\n")
 
-def compute_average_z_2(dumpFile, outFile):
+
+def compute_average_z_2(dumpFile: str, 
+                        outFile: str):
+    """Compute the average z-coordinate for each frame in a LAMMPS dump file and write to an output file.
+
+    Args:
+        dumpFile: The file path to the LAMMPS dump file.
+        outFile: The file path where the average z-coordinates will be written.
+    """
     # input dump, output z.dat
 
     helices_list = [(94,114), (147,168), (171, 192), (200, 217), (226, 241), (250, 269)]
@@ -397,7 +589,22 @@ def compute_average_z_2(dumpFile, outFile):
                     f.write(str(z)+ ", ")
             f.write("\n")
 
-def read_folder(location, match="", **kwargs):
+
+def read_folder(location: str, 
+                match: str = "", 
+                **kwargs
+                ) -> pd.DataFrame:
+    """
+    Read simulation data from a specified folder and compile it into a DataFrame.
+
+    Args:
+        location: The path to the directory containing simulation run folders.
+        match: A string pattern to filter the folders within the location. Defaults to an empty string, which does not filter out any folders.
+        **kwargs: Additional keyword arguments to be passed to the read_simulation_2 function.
+
+    Returns:
+        A pandas DataFrame containing the compiled data from the simulation run folders.
+    """
     runFolders = os.listdir(location+"/simulation")
     if match == "qbias":
         runFolders = [f for f in runFolders if re.match(r'qbias_[0-9]+', f)]
@@ -410,7 +617,22 @@ def read_folder(location, match="", **kwargs):
         data_list.append(tmp)
     return pd.concat(data_list).reset_index(drop=True)
 
-def read_variable_folder(location, match="*_", **kwargs):
+
+def read_variable_folder(location: str, 
+                         match: str = "*_", 
+                         **kwargs
+                         ) -> pd.DataFrame:
+    """
+    Read data from folders matching a specific pattern within a given location and compile the data into a DataFrame.
+
+    Args:
+        location: The directory path where the folders are located.
+        match: The pattern to match for folder names. Defaults to "*_" which matches all folders ending with an underscore.
+        **kwargs: Additional keyword arguments to pass to the read_folder function.
+
+    Returns:
+        A pandas DataFrame containing the compiled data from all matched folders.
+    """
     variables = glob.glob(os.path.join(location, match))
     print(variables)
     data_list = []
@@ -422,7 +644,18 @@ def read_variable_folder(location, match="*_", **kwargs):
     data.reset_index(drop=True).to_feather(name)
 
 
-def downloadPdb(pdb_list, membrane_protein=False, location="original_pdbs/"):
+def downloadPdb(pdb_list: List[str], 
+                membrane_protein: bool = False, 
+                location: str = "original_pdbs/"
+                ) -> None:
+    """Download PDB files from the Protein Data Bank or OPM.
+
+    Args:
+        pdb_list: A list of PDB identifiers to download.
+        membrane_protein: A boolean indicating if the protein is a membrane protein.
+                          If True, download from OPM, otherwise from PDB.
+        location: The directory to save the downloaded PDB files.
+    """
     print("Download from server")
     os.system(f"mkdir -p {location}")
     for pdb_id in pdb_list:
@@ -442,9 +675,36 @@ def downloadPdb(pdb_list, membrane_protein=False, location="original_pdbs/"):
             os.system("rm -r obsolete")
 
 
+def cleanPdb(pdb_list: List[str], 
+             chain: Optional[str] = None, 
+             source: Optional[str] = None, 
+             toFolder: str = "cleaned_pdbs", 
+             formatName: bool = False, 
+             removeDNAchains: bool = True, 
+             verbose: bool = False, 
+             removeTwoEndsMissingResidues: bool = True, 
+             addMissingResidues: bool = True, 
+             removeHeterogens: bool = True, 
+             keepIds: bool = False) -> None:
+    """
+    Clean PDB files according to specified criteria and save them to a specified folder.
 
-def cleanPdb(pdb_list, chain=None, source=None, toFolder="cleaned_pdbs", formatName=False, 
-                removeDNAchains=True, verbose=False, removeTwoEndsMissingResidues=True, addMissingResidues=True, removeHeterogens=True, keepIds=False):
+    Args:
+        pdb_list: A list of PDB identifiers.
+        chain: The specific chain to clean within the PDB files. If None, all chains are considered.
+        source: The source directory where the original PDB files are located. If None, a default directory is used.
+        toFolder: The target directory where the cleaned PDB files will be saved.
+        formatName: A boolean indicating whether to format the PDB names to lowercase and truncate to 4 characters.
+        removeDNAchains: A boolean indicating whether to remove DNA chains from the PDB files.
+        verbose: A boolean indicating whether to print detailed information during processing.
+        removeTwoEndsMissingResidues: A boolean indicating whether to remove residues missing from both ends of a chain.
+        addMissingResidues: A boolean indicating whether to add missing residues that are not present in the PDB files.
+        removeHeterogens: A boolean indicating whether to remove heterogenous atoms from the PDB files.
+        keepIds: A boolean indicating whether to keep the original PDB IDs in the cleaned files.
+
+    Returns:
+        None
+    """
     os.system(f"mkdir -p {toFolder}")
     for pdb_id in pdb_list:
         # print(chain)
@@ -536,7 +796,16 @@ def cleanPdb(pdb_list, chain=None, source=None, toFolder="cleaned_pdbs", formatN
         PDBFile.writeFile(fixer.topology, fixer.positions, open(os.path.join(toFolder, pdbFile), 'w'), keepIds=keepIds)
 
 
-def getAllChains(pdbFile, removeDNAchains=True):
+def getAllChains(pdbFile: str, removeDNAchains: bool = True) -> str:
+    """Get all chain identifiers from a PDB file, optionally removing DNA chains.
+
+    Args:
+        pdbFile: The path to the PDB file from which to extract chain identifiers.
+        removeDNAchains: If True, DNA chains will be excluded from the results. Defaults to True.
+
+    Returns:
+        A string containing all the unique chain identifiers found in the PDB file.
+    """
     fixer = PDBFixer(filename=str(pdbFile))
     # we only want pdb chains, ligands or DNA chain will be ignored here.
     fixer.removeHeterogens(keepWater=False)
@@ -556,7 +825,16 @@ def getAllChains(pdbFile, removeDNAchains=True):
     # return ''.join(sorted(set(a.upper().replace(" ", ""))))
     return ''.join(sorted(set(a.replace(" ", ""))))
 
-def add_chain_to_pymol_pdb(location):
+
+def add_chain_to_pymol_pdb(location: str):
+    """Add chain to PDB file for visualization in PyMOL.
+
+    This function modifies a PDB file by setting the chain identifier of all ATOM records to 'A'.
+    It is useful for ensuring that PyMOL recognizes the structure as a single chain.
+
+    Args:
+        location: The file path to the PDB file that needs to be modified.
+    """
     # location = "/Users/weilu/Research/server/nov_2018/openMM/random_start/1r69.pdb"
     with open("tmp", "w") as out:
         with open(location, "r") as f:
@@ -572,7 +850,15 @@ def add_chain_to_pymol_pdb(location):
     os.system(f"mv tmp {location}")
 
 
-def get_seq_dic(fasta="../crystal_structure.fasta"):
+def get_seq_dic(fasta: str = "../crystal_structure.fasta") -> dict:
+    """Reads a FASTA file and returns a dictionary mapping chain identifiers to sequences.
+
+    Args:
+        fasta: The path to the FASTA file.
+
+    Returns:
+        A dictionary where each key is a chain identifier and each value is the corresponding sequence.
+    """
     seq_dic = {}
     chain = None
     with open(fasta) as f:
@@ -589,7 +875,19 @@ def get_seq_dic(fasta="../crystal_structure.fasta"):
     return seq_dic
 
 
-def seq_length_from_pdb(fileLocation, chains):
+def seq_length_from_pdb(fileLocation: str, 
+                        chains: List[str]
+                        ) -> List[Tuple[str, int, int]]:
+    """
+    Calculate the sequence lengths of specified chains from a PDB file.
+
+    Args:
+        fileLocation: The file path to the PDB file.
+        chains: A list of chain identifiers for which to calculate sequence lengths.
+
+    Returns:
+        A list of tuples, each containing the chain identifier, the starting residue index, and the sequence length for each specified chain.
+    """
     data = []
     parser = PDBParser()
     structure = parser.get_structure('X', fileLocation)
@@ -604,7 +902,16 @@ def seq_length_from_pdb(fileLocation, chains):
     return data
 
 
-def get_frame(file="movie.pdb", to="last_frame.pdb", frame=-1):
+def get_frame(file: str = "movie.pdb", 
+              to: str = "last_frame.pdb", 
+              frame: int = -1):
+    """Extract a specific frame from a PDB movie file and save it to another file.
+
+    Args:
+        file: The path to the input PDB movie file. Defaults to "movie.pdb".
+        to: The path to the output PDB file where the frame will be saved. Defaults to "last_frame.pdb".
+        frame: The index of the frame to extract. Use -1 for the last frame, 1 for the first frame, etc. Defaults to -1.
+    """
     # default is last frame.
     # if you want first, please set frame to 1.
     a = open(file).read().split("ENDMDL")
@@ -613,8 +920,17 @@ def get_frame(file="movie.pdb", to="last_frame.pdb", frame=-1):
         out.write(a[frame-1])
 
 
+def convert_openMM_to_standard_pdb(fileName: str = "last_frame.pdb", 
+                                   seq_dic: dict = None, 
+                                   back: bool = True):
+    """
+    Converts an OpenMM PDB file to a standard PDB file format.
 
-def convert_openMM_to_standard_pdb(fileName="last_frame.pdb", seq_dic=None, back=True):
+    Args:
+        fileName: The name of the PDB file generated by OpenMM. Defaults to "last_frame.pdb".
+        seq_dic: A dictionary mapping chain identifiers to their sequence. If None, the sequence dictionary will be generated. Defaults to None.
+        back: A boolean flag indicating whether to create a backup file. Defaults to True.
+    """
     code = {"GLY" : "G", "ALA" : "A", "LEU" : "L", "ILE" : "I",
             "ARG" : "R", "LYS" : "K", "MET" : "M", "CYS" : "C",
             "TYR" : "Y", "THR" : "T", "PRO" : "P", "SER" : "S",
@@ -664,7 +980,16 @@ def convert_openMM_to_standard_pdb(fileName="last_frame.pdb", seq_dic=None, back
 #         if out != 0:
 #             print(f"!!Problem!!, {l}")
 
-def relocate(fileLocation="frags.mem", toLocation="fraglib"):
+
+def relocate(fileLocation: str = "frags.mem", 
+             toLocation: str = "fraglib"):
+    """
+    Relocate fragment memory files to a specified directory.
+
+    Args:
+        fileLocation: The location of the fragment memory files. Defaults to "frags.mem".
+        toLocation: The destination directory where the fragment memory files will be moved. Defaults to "fraglib".
+    """
     # location = "/Users/weilu/Research/server/april_2019/iterative_optimization_new_set_with_frag/all_simulations/1fc2/1fc2"
     # fileLocation = location + "/frags.mem"
     # toLocation
@@ -678,21 +1003,52 @@ def relocate(fileLocation="frags.mem", toLocation="fraglib"):
         if out != 0:
             print(f"!!Problem!!, {l}")
 
-def replace(TARGET, FROM, TO):
+
+def replace(TARGET: str, 
+            FROM: str, 
+            TO: str):
+    """
+    Replace all occurrences of a substring in a file with another substring.
+
+    Args:
+        TARGET: The path to the target file where the replacement should occur.
+        FROM: The substring that should be replaced.
+        TO: The substring that will replace the original substring.
+
+    """
     os.system("sed -i.bak 's@{}@{}@g' {}".format(FROM,TO,TARGET))
 
 
+def get_PDB_length(pdbFileLocation: str) -> int:
+    """Calculate the number of residues in a PDB file.
 
+    Args:
+        pdbFileLocation: The file path to the PDB file.
 
-def get_PDB_length(pdbFileLocation):
-    from Bio.PDB.PDBParser import PDBParser
+    Returns:
+        The number of residues in the PDB file.
+    """
     # pdbFileLocation = '/Users/weilu/Research/database/chosen/T0869-D1.pdb'
     structure = PDBParser().get_structure("a", pdbFileLocation)
     return len(list(structure.get_residues()))
 
-def pdbToFasta(pdb, pdbLocation, fastaFile, chains="A"):
-    import textwrap
-    from Bio.PDB.PDBParser import PDBParser
+
+def pdbToFasta(pdb: str, 
+               pdbLocation: str, 
+               fastaFile: str, 
+               chains: str = "A"
+               ) -> str:
+    """Converts a PDB file to a FASTA file for the specified chains.
+
+    Args:
+        pdb: The PDB ID of the structure.
+        pdbLocation: The file path to the PDB file.
+        fastaFile: The file path where the FASTA file will be saved.
+        chains: A string of chain identifiers to be included in the FASTA file. Defaults to "A".
+
+    Returns:
+        A string representing the sequence(s) of the specified chain(s) in the PDB file.
+    """
     three_to_one = {'ALA':'A', 'ARG':'R', 'ASN':'N', 'ASP':'D', 'CYS':'C',
                     'GLU':'E', 'GLN':'Q', 'GLY':'G', 'HIS':'H', 'ILE':'I',
                     'LEU':'L', 'LYS':'K', 'MET':'M', 'PHE':'F', 'PRO':'P',
@@ -721,7 +1077,20 @@ def pdbToFasta(pdb, pdbLocation, fastaFile, chains="A"):
     return seq
 
 
-def read_hydrophobicity_scale(seq, tableLocation, isNew=False):
+def read_hydrophobicity_scale(seq: str, 
+                              tableLocation: str, 
+                              isNew: bool = False
+                              ) -> pd.DataFrame:
+    """Reads the hydrophobicity scale and returns a DataFrame with the hydrophobicity values for the given sequence.
+
+    Args:
+        seq: A string representing the sequence of amino acids.
+        tableLocation: A string representing the file path to the hydrophobicity scale table.
+        isNew: A boolean indicating if a new hydrophobicity scale should be used. Defaults to False.
+
+    Returns:
+        A pandas DataFrame with the hydrophobicity values for the given sequence.
+    """
     seq_dataFrame = pd.DataFrame({"oneLetterCode":list(seq)})
     # HFscales = pd.read_table("~/opt/small_script/Whole_residue_HFscales.txt")
     # print(f"reading hydrophobicity scale table from {tableLocation}/Whole_residue_HFscales.txt")
@@ -746,7 +1115,17 @@ def read_hydrophobicity_scale(seq, tableLocation, isNew=False):
     data = seq_dataFrame.merge(HFscales_with_oneLetterCode, on="oneLetterCode", how="left")
     return data
 
-def create_zim(fastaFile, tableLocation, isNew=True):
+
+def create_zim(fastaFile: str, 
+               tableLocation: str, 
+               isNew: bool = True):
+    """Create a zim file for membrane potential from a FASTA file and hydrophobicity scale table.
+
+    Args:
+        fastaFile: The path to the FASTA file.
+        tableLocation: The directory where the hydrophobicity scale table is located.
+        isNew: A boolean indicating if a new hydrophobicity scale should be used. Defaults to True.
+    """
     # print("creating zim file for membrane potential")
     seq = ""
     with open(fastaFile, "r") as f:
@@ -760,7 +1139,16 @@ def create_zim(fastaFile, tableLocation, isNew=True):
     z = data["DGwoct"].values
     np.savetxt("zim", z, fmt="%.2f")
 
-def read_fasta(fastaFile):
+
+def read_fasta(fastaFile: str) -> str:
+    """Reads a FASTA file and returns the sequence as a string.
+
+    Args:
+        fastaFile (str): The path to the FASTA file to be read.
+
+    Returns:
+        str: The sequence extracted from the FASTA file.
+    """
     seq = ""
     with open(fastaFile, "r") as f:
         for line in f:
@@ -771,7 +1159,15 @@ def read_fasta(fastaFile):
                 seq += line.strip()
     return seq
 
-def create_extended_pdb_from_fasta(filename, output_file_name="output.pdb"):
+
+def create_extended_pdb_from_fasta(filename: str, 
+                                   output_file_name: str = "output.pdb"):
+    """Create an extended PDB file from a FASTA file.
+
+    Args:
+        filename (str): The path to the input FASTA file.
+        output_file_name (str, optional): The path where the output PDB file will be saved. Defaults to "output.pdb".
+    """
     # Standard distances and angles for the backbone atoms
     CA_CA =3.8
     CA_C = 1.52/np.sqrt(3/2)

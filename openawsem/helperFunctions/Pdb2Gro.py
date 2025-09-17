@@ -13,25 +13,18 @@ from Bio.PDB.PDBParser import PDBParser
 
 
 class Atom:
-    atom_no = 0
-    atom_name = ""
-    res_no = 0
-    res_name = ""
-    x = 0.0
-    y = 0.0
-    z = 0.0
+    def __init__(self, atom_no: int, atom_name: str, res_no: int, res_name: str, xyz: list, desc: str = ''):
+        """
+        Initialize an Atom object with atom number, atom name, residue number, residue name, coordinates, and description.
 
-    def __init__(self, atom_no, atom_name, res_no, res_name, x, y, z, desc=''):
-        self.atom_no = atom_no
-        self.atom_name = atom_name
-        self.res_no = res_no
-        self.res_name = res_name
-        self.x = x
-        self.y = y
-        self.z = z
-        self.desc = desc
-
-    def __init__(self, atom_no, atom_name, res_no, res_name, xyz, desc=''):
+        Args:
+            atom_no (int): The atom number.
+            atom_name (str): The atom name.
+            res_no (int): The residue number.
+            res_name (str): The residue name.
+            xyz (list): A list containing the x, y, and z coordinates.
+            desc (str, optional): A description for the atom. Defaults to an empty string.
+        """
         self.atom_no = atom_no
         self.atom_name = atom_name
         self.res_no = res_no
@@ -42,9 +35,18 @@ class Atom:
         self.desc = desc
 
     def print_(self):
+        """
+        Print the atom details.
+        """
         print(self.atom_no, self.atom_name, self.res_no, self.res_name, self.x, self.y, self.z, self.desc)
 
     def write_(self, f):
+        """
+        Write the atom details to a file in GRO format.
+
+        Args:
+            f (file): The file object to write to.
+        """
         f.write(("     " + str(self.res_no))[-5:])
         f.write(("     " + self.res_name)[-5:])
         f.write(" " + (self.atom_name + "    ")[:4])
@@ -55,7 +57,18 @@ class Atom:
         f.write("\n")
 
 
-def pdb2gro(pdb_file, output, chain_name=""):
+def pdb2gro(pdb_file: str, 
+            output: str, 
+            chain_name: str = ""):
+    """
+    Convert a PDB file to a GRO file for a specified chain.
+
+    Args:
+        pdb_file (str): The path to the input PDB file.
+        output (str): The path where the output GRO file will be saved.
+        chain_name (str, optional): The name of the chain to be converted. Defaults to an empty string, which means all chains will be converted.
+
+    """
     p = PDBParser(PERMISSIVE=1, QUIET=True)
 
     pdb_id = pdb_file[:-4] if pdb_file.lower().endswith(".pdb") else pdb_file

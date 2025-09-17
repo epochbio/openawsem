@@ -4,13 +4,48 @@ import math
 # line = "{type:4}  {serialNumber:5} {AtomName:4} {ReidueName:3} {Chain:1}{ResId:4} {x:8.3f}{y:8.3f}{z:8.3f}{1:6.2f}{0:6.2f}    {element} \n"
 
 
-def dotproduct(v1, v2):
+def dotproduct(v1: list, 
+               v2: list
+               ) -> float:
+    """Calculate the dot product of two vectors.
+
+    Args:
+        v1: A list of floats or integers representing the first vector.
+        v2: A list of floats or integers representing the second vector.
+
+    Returns:
+        The dot product of the two vectors as a float.
+    """
     return sum((a*b) for a, b in zip(v1, v2))
 
-def length(v):
+
+def length(v: list
+           ) -> float:
+    """Calculate the length (magnitude) of a vector.
+
+    Args:
+        v (list): A list of floats or integers representing the vector.
+
+    Returns:
+        float: The length (magnitude) of the vector.
+    """
     return math.sqrt(dotproduct(v, v))
 
-def read_lammps(lammps_file="dump.lammpstrj", center=False, ca=True):
+
+def read_lammps(lammps_file: str = "dump.lammpstrj", 
+                center: bool = False, 
+                ca: bool = True
+                ) -> list:
+    """Reads a LAMMPS trajectory file and processes the data.
+
+    Args:
+        lammps_file: The name of the LAMMPS trajectory file to read.
+        center: A boolean indicating whether to center the box bounds.
+        ca: A boolean indicating whether to process only alpha carbon atoms.
+
+    Returns:
+        A list of frames, each containing the atoms' data and box bounds.
+    """
     nFrame = 0
     with open(lammps_file, "r") as lfile:
         for line in lfile:

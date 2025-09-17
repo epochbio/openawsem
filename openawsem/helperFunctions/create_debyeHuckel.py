@@ -3,7 +3,15 @@ import argparse
 from pathlib import Path
 import numpy as np
 
-def generate_charge_array(fasta_file, save_to):
+
+def generate_charge_array(fasta_file: Path, 
+                          save_to: Path):
+    """Generate an array of charges from a fasta file and save it to a file.
+
+    Args:
+        fasta_file (Path): The path to the fasta file containing the protein sequence.
+        save_to (Path): The path where the charge array will be saved.
+    """
     with fasta_file.open() as input_data:
         seq = ""
         for line in input_data:
@@ -26,6 +34,7 @@ def generate_charge_array(fasta_file, save_to):
 
     print(f"write charge info to file: {save_to}")
     np.savetxt(save_to, charge_list, fmt='%i %.1f')
+
 
 def main():
     parser = argparse.ArgumentParser(description="Generate an array for the Debye-Huckel term.")

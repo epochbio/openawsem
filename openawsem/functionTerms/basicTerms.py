@@ -1,13 +1,14 @@
 try:
-    from openmm.app import *
-    from openmm import *
-    from openmm.unit import *
+    from openmm import CustomCompoundBondForce, CustomNonbondedForce, HarmonicBondForce, Discrete2DFunction
+    from openmm.unit import kilojoule_per_mole, kilocalorie_per_mole, Quantity
 except ModuleNotFoundError:
-    from simtk.openmm.app import *
-    from simtk.openmm import *
-    from simtk.unit import *
+    from simtk.openmm import CustomCompoundBondForce, CustomNonbondedForce, HarmonicBondForce, Discrete2DFunction
+    from simtk.unit import kilojoule_per_mole, kilocalorie_per_mole, Quantity
 import numpy as np
 import pandas as pd
+from typing import List, Tuple, Dict, Union, Optional
+from openawsem.openAWSEM import OpenMMAWSEMSystem
+
 
 one_to_three={'A':'ALA', 'C':'CYS', 'D':'ASP', 'E':'GLU', 'F':'PHE',
             'G':'GLY', 'H':'HIS', 'I':'ILE', 'K':'LYS', 'L':'LEU',
@@ -20,7 +21,23 @@ three_to_one = {'ALA':'A', 'ARG':'R', 'ASN':'N', 'ASP':'D', 'CYS':'C',
                 'SER':'S', 'THR':'T', 'TRP':'W', 'TYR':'Y', 'VAL':'V'}
 
 
-def con_term(oa, k_con=50208, bond_lengths=[.3816, .240, .276, .153], forceGroup=20):
+def con_term(oa: OpenMMAWSEMSystem, 
+             k_con: float = 50208, 
+             bond_lengths: List[float] = [.3816, .240, .276, .153], 
+             forceGroup: int = 20
+             ) -> HarmonicBondForce:
+    """
+    Add conformational (con) forces to the system as harmonic bond forces.
+
+    Args:
+        oa: An instance of OpenMMAWSEMSystem, which provides access to the simulation system.
+        k_con: The force constant for the conformational term. Default is 50208 kJ/nm^2.
+        bond_lengths: A list of equilibrium bond lengths in nanometers. Default is [.3816, .240, .276, .153].
+        forceGroup: The force group to which this force will be added. Default is 20.
+
+    Returns:
+        A HarmonicBondForce object representing the conformational forces.
+    """
     # add con forces
     # 50208 = 60 * 2 * 4.184 * 100. kJ/nm^2, converted from default value in LAMMPS AWSEM
     # multiply interaction strength by overall scaling
@@ -29,7 +46,6 @@ def con_term(oa, k_con=50208, bond_lengths=[.3816, .240, .276, .153], forceGroup
 
     if oa.periodic:
         con.setUsesPeriodicBoundaryConditions(True)
-        print('\ncon_term is periodic')
     
     for i in range(oa.nres):
         con.addBond(oa.ca[i], oa.o[i], bond_lengths[1], k_con)
@@ -42,8 +58,24 @@ def con_term(oa, k_con=50208, bond_lengths=[.3816, .240, .276, .153], forceGroup
     return con
 
 
-def chain_term(oa, k_chain=50208, bond_k=[1, 1, 1], bond_lengths=[0.2459108, 0.2519591, 0.2466597], forceGroup=20):
-    # add chain forces
+def chain_term(oa: OpenMMAWSEMSystem, 
+               k_chain: float = 50208, 
+               bond_k: List[float] = [1, 1, 1], 
+               bond_lengths: List[float] = [0.2459108, 0.2519591, 0.2466597], 
+               forceGroup: int = 20
+               ) -> HarmonicBondForce:
+    """Add chain forces to the system.
+
+    Args:
+        oa: An instance of OpenMMAWSEMSystem, which provides access to the simulation system.
+        k_chain: The force constant for the chain term. Default is 50208 kJ/nm^2.
+        bond_k: A list of scaling factors for the bond force constants. Default is [1, 1, 1].
+        bond_lengths: A list of equilibrium bond lengths in nanometers. Default is [0.2459108, 0.2519591, 0.2466597].
+        forceGroup: The force group to which this force will be added. Default is 20.
+
+    Returns:
+        A HarmonicBondForce object representing the chain forces.
+    """
     # 50208 = 60 * 2 * 4.184 * 100. kJ/nm^2, converted from default value in LAMMPS AWSEM
     # multiply interaction strength by overall scaling
     k_chain *= oa.k_awsem
@@ -51,7 +83,6 @@ def chain_term(oa, k_chain=50208, bond_k=[1, 1, 1], bond_lengths=[0.2459108, 0.2
     
     if oa.periodic:
         chain.setUsesPeriodicBoundaryConditions(True)
-        print('\nchain_term is periodic')
 
     for i in range(oa.nres):
         if i not in oa.chain_starts and not oa.res_type[i] == "IGL":
@@ -63,8 +94,24 @@ def chain_term(oa, k_chain=50208, bond_k=[1, 1, 1], bond_lengths=[0.2459108, 0.2
     chain.setForceGroup(forceGroup)
     return chain
 
-def chi_term(oa, k_chi=251.04, chi0=-0.71, forceGroup=20):
-    # add chi forces
+
+def chi_term(oa: OpenMMAWSEMSystem, 
+             k_chi: float = 251.04, 
+             chi0: float = -0.71, 
+             forceGroup: int = 20
+             ) -> CustomCompoundBondForce:
+    """
+    Add chi forces to the system.
+
+    Args:
+        oa: An instance of OpenMMAWSEMSystem, which provides access to the simulation system.
+        k_chi: The force constant for the chi angle term. Default is 251.04 kJ/mol.
+        chi0: The equilibrium chi angle value in radians. Default is -0.71 radians.
+        forceGroup: The force group to which this force will be added. Default is 20.
+
+    Returns:
+        A CustomCompoundBondForce object representing the chi angle forces.
+    """
     # The sign of the equilibrium value is opposite and magnitude differs slightly
     # 251.04 = 60 * 4.184 kJ, converted from default value in LAMMPS AWSEM
     # multiply interaction strength by overall scaling
@@ -83,7 +130,6 @@ def chi_term(oa, k_chi=251.04, chi0=-0.71, forceGroup=20):
 
     if oa.periodic:
         chi.setUsesPeriodicBoundaryConditions(True)
-        print('\nchi_term is periodic')
 
     for i in range(oa.nres):
         if i not in oa.chain_starts and i not in oa.chain_ends and not oa.res_type[i] == "IGL":
@@ -91,7 +137,28 @@ def chi_term(oa, k_chi=251.04, chi0=-0.71, forceGroup=20):
     chi.setForceGroup(forceGroup)
     return chi
 
-def excl_term(oa, k_excl=8368, r_excl=0.35, periodic=False, excludeCB=False, forceGroup=20):
+
+def excl_term(oa: OpenMMAWSEMSystem, 
+              k_excl: float = 8368, 
+              r_excl: float = 0.35, 
+              periodic: bool = False, 
+              excludeCB: bool = False, 
+              forceGroup: int = 20
+              ) -> CustomNonbondedForce:
+    """
+    Add excluded volume interactions to the system with an option to exclude interactions between C-beta atoms.
+
+    Args:
+        oa: An instance of OpenMMAWSEMSystem, which provides access to the simulation system.
+        k_excl: The force constant for the excluded volume interactions. Default is 8368 kJ/mol.
+        r_excl: The distance within which the excluded volume interaction is active. Default is 0.35 nm.
+        periodic: A boolean indicating whether periodic boundary conditions should be used. Default is False.
+        excludeCB: A boolean indicating whether interactions between C-beta atoms should be excluded. Default is False.
+        forceGroup: The force group to which this force will be added. Default is 20.
+
+    Returns:
+        A CustomNonbondedForce object representing the excluded volume interactions.
+    """
     # add excluded volume
     # Still need to add element specific parameters
     # 8368 = 20 * 4.184 * 100 kJ/nm^2, converted from default value in LAMMPS AWSEM
@@ -102,7 +169,6 @@ def excl_term(oa, k_excl=8368, r_excl=0.35, periodic=False, excludeCB=False, for
 
     if oa.periodic:
         excl.setNonbondedMethod(excl.CutoffPeriodic)
-        print('\nexcl_term is periodic')
     else:
         excl.setNonbondedMethod(excl.CutoffNonPeriodic)
 
@@ -125,8 +191,31 @@ def excl_term(oa, k_excl=8368, r_excl=0.35, periodic=False, excludeCB=False, for
     return excl
 
 
-def excl_term_v2(oa, k_excl=8368, r_excl=0.35, periodic=False, excludeCB=False, forceGroup=20):
-    # this version remove the use of "createExclusionsFromBonds", which could potentially conflict with other CustomNonbondedForce and causing "All forces must have the same exclusion".
+def excl_term_v2(oa: OpenMMAWSEMSystem, 
+                 k_excl: float = 8368, 
+                 r_excl: float = 0.35, 
+                 periodic: bool = False, 
+                 excludeCB: bool = False, 
+                 forceGroup: int = 20
+                 ) -> CustomNonbondedForce:
+    """
+    Create a version of the excluded volume term that does not use createExclusionsFromBonds.
+
+    This function sets up a CustomNonbondedForce to model excluded volume interactions in a way that avoids
+    potential conflicts with other CustomNonbondedForce objects that could arise from using createExclusionsFromBonds.
+
+    Args:
+        oa: An instance of OpenMMAWSEMSystem, which provides access to the simulation system.
+        k_excl: The force constant for the excluded volume interactions. Default is 8368 kJ/mol.
+        r_excl: The distance within which the excluded volume interaction is active. Default is 0.35 nm.
+        periodic: A boolean indicating whether periodic boundary conditions should be used. Default is False.
+        excludeCB: A boolean indicating whether to exclude interactions between CB atoms. Default is False.
+        forceGroup: The force group to which this force will be added. Default is 20.
+
+    Returns:
+        A CustomNonbondedForce object representing the excluded volume interactions.
+    """
+    # Implementation goes here
     # add excluded volume
     # Still need to add element specific parameters
     # 8368 = 20 * 4.184 * 100 kJ/nm^2, converted from default value in LAMMPS AWSEM
@@ -137,7 +226,6 @@ def excl_term_v2(oa, k_excl=8368, r_excl=0.35, periodic=False, excludeCB=False, 
     
     if oa.periodic:
         excl.setNonbondedMethod(excl.CutoffPeriodic)
-        print("\nexcel_term is periodic")
     else:
         excl.setNonbondedMethod(excl.CutoffNonPeriodic)
 
@@ -174,7 +262,34 @@ def excl_term_v2(oa, k_excl=8368, r_excl=0.35, periodic=False, excludeCB=False, 
     excl.setForceGroup(forceGroup)
     return excl
 
-def rama_term(oa, k_rama=8.368, num_rama_wells=3, w=[1.3149, 1.32016, 1.0264], sigma=[15.398, 49.0521, 49.0954], omega_phi=[0.15, 0.25, 0.65], phi_i=[-1.74, -1.265, 1.041], omega_psi=[0.65, 0.45, 0.25], psi_i=[2.138, -0.318, 0.78], forceGroup=21):
+
+def rama_term(oa: OpenMMAWSEMSystem, 
+              k_rama: float = 8.368, 
+              num_rama_wells: int = 3, 
+              w: List[float] = [1.3149, 1.32016, 1.0264], 
+              sigma: List[float] = [15.398, 49.0521, 49.0954], 
+              omega_phi: List[float] = [0.15, 0.25, 0.65], 
+              phi_i: List[float] = [-1.74, -1.265, 1.041], 
+              omega_psi: List[float] = [0.65, 0.45, 0.25], 
+              psi_i: List[float] = [2.138, -0.318, 0.78], 
+              forceGroup: int = 21) -> CustomCompoundBondForce:
+    """Add Ramachandran potential to the system.
+
+    Args:
+        oa: An OpenMMAWSEMSystem which provides access to the simulation system.
+        k_rama: The force constant for the Rama potential. Default is 8.368.
+        num_rama_wells: The number of Ramachandran wells. Default is 3.
+        w: The weights for the Rama potential. Default is [1.3149, 1.32016, 1.0264].
+        sigma: The barrier heights for the Rama potential. Default is [15.398, 49.0521, 49.0954].
+        omega_phi: The weights for the phi angle term. Default is [0.15, 0.25, 0.65].
+        phi_i: The ideal phi angles. Default is [-1.74, -1.265, 1.041].
+        omega_psi: The weights for the psi angle term. Default is [0.65, 0.45, 0.25].
+        psi_i: The ideal psi angles. Default is [2.138, -0.318, 0.78].
+        forceGroup: The force group to which this force will be added. Default is 21.
+
+    Returns:
+        A CustomCompoundBondForce object that implements the Rama potential.
+    """
     # add Rama potential
     # 8.368 = 2 * 4.184 kJ/mol, converted from default value in LAMMPS AWSEM
     # multiply interaction strength by overall scaling
@@ -190,7 +305,6 @@ def rama_term(oa, k_rama=8.368, num_rama_wells=3, w=[1.3149, 1.32016, 1.0264], s
 
     if oa.periodic:
         rama.setUsesPeriodicBoundaryConditions(True)
-        print('\nrama_term is periodic')
 
     for i in range(num_rama_wells):
         rama.addGlobalParameter(f"k_rama", k_rama)
@@ -206,7 +320,34 @@ def rama_term(oa, k_rama=8.368, num_rama_wells=3, w=[1.3149, 1.32016, 1.0264], s
     rama.setForceGroup(forceGroup)
     return rama
 
-def rama_proline_term(oa, k_rama_proline=8.368, num_rama_proline_wells=2, w=[2.17, 2.15], sigma=[105.52, 109.09], omega_phi=[1.0, 1.0], phi_i=[-1.153, -0.95], omega_psi=[0.15, 0.15], psi_i=[2.4, -0.218], forceGroup=21):
+
+def rama_proline_term(oa: OpenMMAWSEMSystem, 
+                      k_rama_proline: float = 8.368, 
+                      num_rama_proline_wells: int = 2, 
+                      w: List[float] = [2.17, 2.15], 
+                      sigma: List[float] = [105.52, 109.09], 
+                      omega_phi: List[float] = [1.0, 1.0], 
+                      phi_i: List[float] = [-1.153, -0.95], 
+                      omega_psi: List[float] = [0.15, 0.15], 
+                      psi_i: List[float] = [2.4, -0.218], 
+                      forceGroup: int = 21) -> CustomCompoundBondForce:
+    """Add Ramachandran potential for proline residues to the system.
+
+    Args:
+        oa: An OpenMMAWSEMSystem which provides access to the simulation system.
+        k_rama_proline: The force constant for the Rama potential of proline. Default is 8.368.
+        num_rama_proline_wells: The number of Ramachandran wells for proline. Default is 2.
+        w: The weights for the Rama potential of proline. Default is [2.17, 2.15].
+        sigma: The barrier heights for the Rama potential of proline. Default is [105.52, 109.09].
+        omega_phi: The weights for the phi angle term of proline. Default is [1.0, 1.0].
+        phi_i: The ideal phi angles for proline. Default is [-1.153, -0.95].
+        omega_psi: The weights for the psi angle term of proline. Default is [0.15, 0.15].
+        psi_i: The ideal psi angles for proline. Default is [2.4, -0.218].
+        forceGroup: The force group to which this force will be added. Default is 21.
+
+    Returns:
+        A CustomCompoundBondForce object that implements the Rama potential for proline residues.
+    """
     # add Rama potential for prolines
     # 8.368 = 2 * 4.184 kJ/mol, converted from default value in LAMMPS AWSEM
     # multiply interaction strength by overall scaling
@@ -222,7 +363,6 @@ def rama_proline_term(oa, k_rama_proline=8.368, num_rama_proline_wells=2, w=[2.1
 
     if oa.periodic:
         rama.setUsesPeriodicBoundaryConditions(True)
-        print('\nrama_proline_term is periodic')
 
     for i in range(num_rama_proline_wells):
         rama.addGlobalParameter(f"k_rama_proline", k_rama_proline)
@@ -238,10 +378,36 @@ def rama_proline_term(oa, k_rama_proline=8.368, num_rama_proline_wells=2, w=[2.1
     rama.setForceGroup(forceGroup)
     return rama
 
-def rama_ssweight_term(oa, k_rama_ssweight=8.368, num_rama_wells=2, w=[2.0, 2.0],
-                    sigma=[419.0, 15.398], omega_phi=[1.0, 1.0], phi_i=[-0.995, -2.25],
-                    omega_psi=[1.0, 1.0], psi_i=[-0.82, 2.16], ssweight_file="ssweight", forceGroup=21):
-    # add RamaSS potential
+
+def rama_ssweight_term(oa: OpenMMAWSEMSystem, 
+                       k_rama_ssweight: float = 8.368, 
+                       num_rama_wells: int = 2, 
+                       w: List[float] = [2.0, 2.0],
+                       sigma: List[float] = [419.0, 15.398], 
+                       omega_phi: List[float] = [1.0, 1.0], 
+                       phi_i: List[float] = [-0.995, -2.25],
+                       omega_psi: List[float] = [1.0, 1.0], 
+                       psi_i: List[float] = [-0.82, 2.16], 
+                       ssweight_file: str = "ssweight", 
+                       forceGroup: int = 21):
+    """Add Ramachandran SS potential with secondary structure weight to the system.
+
+    Args:
+        oa: An OpenMMAWSEMSystem which provides access to the simulation system.
+        k_rama_ssweight: The force constant for the RamaSS term. Default is 8.368.
+        num_rama_wells: The number of Ramachandran wells. Default is 2.
+        w: The weights for the RamaSS potential. Default is [2.0, 2.0].
+        sigma: The barrier heights for the RamaSS potential. Default is [419.0, 15.398].
+        omega_phi: The weights for the phi angle term. Default is [1.0, 1.0].
+        phi_i: The ideal phi angles for the RamaSS potential. Default is [-0.995, -2.25].
+        omega_psi: The weights for the psi angle term. Default is [1.0, 1.0].
+        psi_i: The ideal psi angles for the RamaSS potential. Default is [-0.82, 2.16].
+        ssweight_file: The file containing secondary structure weights. Default is "ssweight".
+        forceGroup: The force group to which this force will be added. Default is 21.
+
+    Returns:
+        A CustomCompoundBondForce object that implements the RamaSS potential with secondary structure weight.
+    """
     # 8.368 = 2 * 4.184 kJ/mol, converted from default value in LAMMPS AWSEM
     # multiply interaction strength by overall scaling
     k_rama_ssweight *= oa.k_awsem
@@ -256,7 +422,6 @@ def rama_ssweight_term(oa, k_rama_ssweight=8.368, num_rama_wells=2, w=[2.0, 2.0]
     
     if oa.periodic:
         ramaSS.setUsesPeriodicBoundaryConditions(True)
-        print('\nrama_ssweight_term is periodic')
 
     ramaSS.addPerBondParameter("resId")    
     for i in range(num_rama_wells):
@@ -275,8 +440,22 @@ def rama_ssweight_term(oa, k_rama_ssweight=8.368, num_rama_wells=2, w=[2.0, 2.0]
     return ramaSS
 
 
+def side_chain_term(oa: OpenMMAWSEMSystem, 
+                    k: Quantity=1*kilocalorie_per_mole, 
+                    gmmFileFolder: str="/Users/weilu/opt/parameters/side_chain", 
+                    forceGroup: int=25):
+    """
+    Add side chain chi angle forces to the system using Gaussian Mixture Models.
 
-def side_chain_term(oa, k=1*kilocalorie_per_mole, gmmFileFolder="/Users/weilu/opt/parameters/side_chain", forceGroup=25):
+    Args:
+        oa: An OpenMMAWSEMSystem which provides access to the simulation system.
+        k: The force constant for the side chain term. Default is 1 kcal/mol.
+        gmmFileFolder: The directory path where the GMM parameters are stored. Default is "/Users/weilu/opt/parameters/side_chain".
+        forceGroup: The force group to which this force will be added. Default is 25.
+
+    Returns:
+        A CustomCompoundBondForce object that implements the side chain chi angle forces.
+    """
     # add chi forces
     # The sign of the equilibrium value is opposite and magnitude differs slightly
     # 251.04 = 60 * 4.184 kJ, converted from default value in LAMMPS AWSEM
@@ -359,7 +538,26 @@ def side_chain_term(oa, k=1*kilocalorie_per_mole, gmmFileFolder="/Users/weilu/op
     side_chain.setForceGroup(forceGroup)
     return side_chain
 
-def chain_no_cb_constraint_term(oa, k_chain=50208, bond_lengths=[0.2459108, 0.2519591, 0.2466597], forceGroup=20):
+
+def chain_no_cb_constraint_term(oa: OpenMMAWSEMSystem, 
+                                k_chain: float = 50208, 
+                                bond_lengths: List[float] = [0.2459108, 0.2519591, 0.2466597], 
+                                forceGroup: int = 20
+                                ) -> HarmonicBondForce:
+    """Apply a harmonic bond force to the system for residues without a C-beta atom.
+
+    This function creates a harmonic bond force for the N-Ca and Ca-C bonds, as well as a Ca-Cb bond for the
+    start and end residues of a chain, if they are not glycine or proline.
+
+    Args:
+        oa: An instance of OpenMMAWSEMSystem which provides access to the simulation system.
+        k_chain: The force constant for the chain. Default is 50208 (kJ/mol/nm^2).
+        bond_lengths: The equilibrium bond lengths for the N-Ca, Ca-C, and Ca-Cb bonds, respectively. Default is [0.2459108, 0.2519591, 0.2466597] nm.
+        forceGroup: The force group to which this force will be added. Default is 20.
+
+    Returns:
+        A HarmonicBondForce object that implements the chain constraints for residues without a C-beta atom.
+    """
     # add chain forces
     # 50208 = 60 * 2 * 4.184 * 100. kJ/nm^2, converted from default value in LAMMPS AWSEM
     # multiply interaction strength by overall scaling
@@ -375,7 +573,27 @@ def chain_no_cb_constraint_term(oa, k_chain=50208, bond_lengths=[0.2459108, 0.25
     chain.setForceGroup(forceGroup)
     return chain
 
-def con_no_cb_constraint_term(oa, k_con=50208, bond_lengths=[.3816, .240, .276, .153], forceGroup=20):
+
+def con_no_cb_constraint_term(oa: OpenMMAWSEMSystem, 
+                              k_con: float = 50208, 
+                              bond_lengths: List[float] = [.3816, .240, .276, .153], 
+                              forceGroup: int = 20
+                              ) -> HarmonicBondForce:
+    """
+    Add constraints to the system for residues without a C-beta atom.
+
+    This function creates a harmonic bond force for the N-Ca, Ca-O, and Ca-Ca+1 bonds, as well as a Ca-Cb bond for the
+    start and end residues of a chain, if they are not glycine or proline.
+
+    Args:
+        oa: An instance of OpenMMAWSEMSystem which provides access to the simulation system.
+        k_con: The force constant for the constraints. Default is 50208 (kJ/mol/nm^2).
+        bond_lengths: The equilibrium bond lengths for the N-Ca, Ca-O, Ca-Ca+1, and Ca-Cb bonds, respectively. Default is [0.3816, 0.24, 0.276, 0.153] nm.
+        forceGroup: The force group to which this force will be added. Default is 20.
+
+    Returns:
+        A HarmonicBondForce object that implements the constraints for residues without a C-beta atom.
+    """
     # add con forces
     # 50208 = 60 * 2 * 4.184 * 100. kJ/nm^2, converted from default value in LAMMPS AWSEM
     # multiply interaction strength by overall scaling
@@ -397,8 +615,28 @@ def con_no_cb_constraint_term(oa, k_con=50208, bond_lengths=[.3816, .240, .276, 
     return con
 
 
+def cbd_excl_term(oa: OpenMMAWSEMSystem, 
+                  k: Quantity = 1*kilocalorie_per_mole, 
+                  r_excl: float = 0.7, 
+                  fileLocation: str = 'cbd_cbd_real_contact_symmetric.csv', 
+                  forceGroup: int = 24
+                  ) -> CustomNonbondedForce:
+    """Apply a Cb domain excluded volume term to the system.
 
-def cbd_excl_term(oa, k=1*kilocalorie_per_mole, r_excl=0.7, fileLocation='cbd_cbd_real_contact_symmetric.csv', forceGroup=24):
+    This function creates a nonbonded force that penalizes steric clashes between Cb atoms
+    of the protein, based on a residue-specific exclusion distance read from a CSV file.
+
+    Args:
+        oa: An instance of OpenMMAWSEMSystem which provides access to the simulation system.
+        k: The force constant for the excluded volume interaction. Default is 1 kcal/mol.
+        r_excl: The cutoff distance for the excluded volume interaction in nanometers. Default is 0.7 nm.
+        fileLocation: The file path to the CSV file containing the residue-specific exclusion distances. 
+                      Default is 'cbd_cbd_real_contact_symmetric.csv'.
+        forceGroup: The force group to which this force will be added. Default is 24.
+
+    Returns:
+        A CustomNonbondedForce object that implements the Cb domain excluded volume term.
+    """
     # Cb domain Excluded volume
     # With residue specific parameters
     # a harmonic well with minimum at the database histogram peak.

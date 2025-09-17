@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
+try:
+    from openmm import LangevinIntegrator, Platform, CustomIntegrator
+    from openmm.app import Simulation, PDBReporter, DCDReporter
+    from openmm.unit import picosecond, picoseconds, femtoseconds, kelvin
+except ModuleNotFoundError:
+    from simtk.openmm import LangevinIntegrator, Platform, CustomIntegrator
+    from simtk.openmm.app import Simulation, PDBReporter, DCDReporter
+    from simtk.unit import picosecond, picoseconds, femtoseconds, kelvin
+
 import os
 import sys
-import random
 import time
-from random import seed, randint
 import argparse
 import platform
-from datetime import datetime
-from time import sleep
-import fileinput
 import importlib.util
 
 try:
@@ -19,10 +23,10 @@ except KeyError:
     print("Example run: python mm_evaluate_native.py 1r69 --to 1r69_native_energy \nPlease set the environment variable name OPENAWSEM_LOCATION.\n Example: export OPENAWSEM_LOCATION='YOUR_OPENAWSEM_LOCATION'")
     exit()
 
-from openmmawsem import *
-from helperFunctions.myFunctions import *
+from openawsem.openAWSEM import OpenMMAWSEMSystem
+from helperFunctions.myFunctions import read_fasta, getAllChains
 
-# from run_parameter import *
+
 parser = argparse.ArgumentParser(
     description="This is a python3 script to\
     automatic copy the template file, \

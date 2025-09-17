@@ -13,8 +13,9 @@ except KeyError:
     print("Please set the environment variable name OPENAWSEM_LOCATION.\n Example: export OPENAWSEM_LOCATION='YOUR_OPENAWSEM_LOCATION'")
     exit()
 
-# from myFunctions import *
 from helperFunctions.myFunctions import *
+from typing import List, Tuple
+from Bio.PDB import Structure
 
 
 parser = argparse.ArgumentParser(
@@ -27,7 +28,17 @@ args = parser.parse_args()
 movieFile = args.openmm
 
 
-def getAllFrames(movieLocation):
+def getAllFrames(movieLocation: str
+                 ) -> Tuple[List[str], int, int]:
+    """Extract all frames from a given movie file location.
+
+    Args:
+        movieLocation (str): The file path to the movie file.
+
+    Returns:
+        Tuple[List[str], int, int]: A tuple containing a list of all lines in the file,
+                                    the total number of lines, and the size of each model block.
+    """
     # movieLocation = "/Users/weilu/Research/examples/openMM_simulation/test_2/movie.pdb"
     location = movieLocation
     with open(location) as f:
@@ -52,7 +63,20 @@ def getAllFrames(movieLocation):
 
     return a, n, size
 
-def get_contacts_table(s, MAX_OFFSET=4, DISTANCE_CUTOFF=9.5):
+def get_contacts_table(s: Structure, 
+                       MAX_OFFSET: int = 4, 
+                       DISTANCE_CUTOFF: float = 9.5
+                       ) -> np.ndarray:
+    """Calculate the contact map table for a given structure.
+
+    Args:
+        s (Structure): The structure object from Biopython PDB parser.
+        MAX_OFFSET (int): The maximum sequence separation for two residues to be considered in contact.
+        DISTANCE_CUTOFF (float): The distance cutoff in Angstroms for two residues to be considered in contact.
+
+    Returns:
+        np.ndarray: A 2D numpy array representing the contact map.
+    """
     chains = s[0].get_list()
     # import pdb file
     coords = []

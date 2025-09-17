@@ -1,14 +1,15 @@
 try:
-    from openmm.app import *
-    from openmm import *
-    from openmm.unit import *
+    from openmm import Discrete2DFunction, Discrete3DFunction, CustomGBForce
+    from openmm.unit import nanometer, kilojoule_per_mole, angstrom, kilocalorie_per_mole, Quantity
 except ModuleNotFoundError:
-    from simtk.openmm.app import *
-    from simtk.openmm import *
-    from simtk.unit import *
+    from simtk.openmm import Discrete2DFunction, Discrete3DFunction, CustomGBForce
+    from simtk.unit import nanometer, kilojoule_per_mole, angstrom, kilocalorie_per_mole, Quantity
 import numpy as np
 import pandas as pd
+import os
 import openawsem
+from typing import List, Tuple, Union, Optional, Dict, Any
+from openawsem.openAWSEM import OpenMMAWSEMSystem
 
 
 gamma_se_map_1_letter = {   'A': 0,  'R': 1,  'N': 2,  'D': 3,  'C': 4,
@@ -21,17 +22,72 @@ three_to_one = {'ALA':'A', 'ARG':'R', 'ASN':'N', 'ASP':'D', 'CYS':'C',
                 'LEU':'L', 'LYS':'K', 'MET':'M', 'PHE':'F', 'PRO':'P',
                 'SER':'S', 'THR':'T', 'TRP':'W', 'TYR':'Y', 'VAL':'V'}
 
-def convert_resname_to_index(resName):
+res_type_map_HP = {
+            'C': 0,
+            'M': 0,
+            'F': 0,
+            'I': 0,
+            'L': 0,
+            'V': 0,
+            'W': 0,
+            'Y': 0,
+            'A': 1,
+            'H': 1,
+            'T': 1,
+            'G': 1,
+            'P': 1,
+            'D': 1,
+            'E': 1,
+            'N': 1,
+            'Q': 1,
+            'R': 1,
+            'K': 1,
+            'S': 1
+}
+
+
+def convert_resname_to_index(resName: str) -> int:
+    """Convert a three-letter residue name to its corresponding index.
+
+    Args:
+        resName: A string representing the three-letter code of a residue.
+
+    Returns:
+        An integer index corresponding to the residue.
+
+    """
     return gamma_se_map_1_letter[three_to_one[resName]]
 
-def read_gamma(gammaFile):
+
+def read_gamma(gammaFile: str
+               ) -> Tuple[np.ndarray, np.ndarray]:
+    """Read gamma values from a file.
+
+    Args:
+        gammaFile: The path to the file containing gamma values.
+
+    Returns:
+        A tuple of two numpy arrays, the first containing direct gamma values and the second containing mediated gamma values.
+    """
     data = np.loadtxt(gammaFile)
     gamma_direct = data[:210]
     gamma_mediated = data[210:]
     return gamma_direct, gamma_mediated
 
 
-def inWhichChain(residueId, chain_ends):
+def inWhichChain(residueId: int, 
+                 chain_ends: List[int]
+                 ) -> str:
+    """Determine in which chain a residue is located based on its residue ID.
+
+    Args:
+        residueId: An integer representing the residue ID.
+        chain_ends: A list of integers where each integer represents the ending residue ID of a chain.
+
+    Returns:
+        A single character string representing the chain in which the residue with the given ID is located.
+
+    """
     chain_table = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
     for i, end_of_chain_resId in enumerate(chain_ends):
         if end_of_chain_resId < residueId:
@@ -40,8 +96,45 @@ def inWhichChain(residueId, chain_ends):
             return chain_table[i]
 
 
-def contact_term(oa, k_contact=4.184, z_dependent=False, z_m=1.5, inMembrane=False, membrane_center=0*angstrom, k_relative_mem=1.0, periodic=False, parametersLocation=None, burialPartOn=True, withExclusion=False, forceGroup=22,
-                gammaName="gamma.dat", burialGammaName="burial_gamma.dat", membraneGammaName="membrane_gamma.dat", r_min=0.45):
+def contact_term(oa: OpenMMAWSEMSystem, 
+                 k_contact: float = 4.184, 
+                 z_dependent: bool = False, 
+                 z_m: float = 1.5, inMembrane: bool = False, 
+                 membrane_center: Quantity = 0*angstrom, 
+                 k_relative_mem: float = 1.0, 
+                 periodic: bool = False, 
+                 parametersLocation: Optional[str] = None, 
+                 burialPartOn: bool = True, 
+                 withExclusion: bool = False, 
+                 forceGroup: int = 22,
+                 gammaName: str = "gamma.dat", 
+                 burialGammaName: str = "burial_gamma.dat", 
+                 membraneGammaName: str = "membrane_gamma.dat", 
+                 r_min: float = 0.45
+                 ) -> 'CustomGBForce':
+    """Define the contact term of the potential using the provided parameters.
+
+    Args:
+        oa: An OpenMMAWSEMSystem which provides the simulation context.
+        k_contact: The contact energy scale in kcal/mol. Defaults to 4.184.
+        z_dependent: A boolean indicating if the contact term is dependent on the z-coordinate. Defaults to False.
+        z_m: The characteristic length scale for the membrane, in nm. Defaults to 1.5.
+        inMembrane: A boolean indicating if the contact term is within the membrane. Defaults to False.
+        membrane_center: The center of the membrane as a Quantity with units. Defaults to 0*angstrom.
+        k_relative_mem: The relative strength of membrane interactions. Defaults to 1.0.
+        periodic: A boolean indicating if periodic boundary conditions should be used. Defaults to False.
+        parametersLocation: The path to the directory containing parameter files. If None, defaults to the OpenAWSEM parameters path.
+        burialPartOn: A boolean indicating if the burial part of the potential should be included. Defaults to True.
+        withExclusion: A boolean indicating if non-interacting pairs should be excluded to speed up computation. Defaults to False.
+        forceGroup: The force group to which this term should be added. Defaults to 22.
+        gammaName: The name of the file containing direct gamma values. Defaults to "gamma.dat".
+        burialGammaName: The name of the file containing burial gamma values. Defaults to "burial_gamma.dat".
+        membraneGammaName: The name of the file containing membrane gamma values. Defaults to "membrane_gamma.dat".
+        r_min: The minimum distance for the contact potential, in nm. Defaults to 0.45.
+
+    Returns:
+        A CustomGBForce object representing the contact term of the potential.
+    """
     if parametersLocation is None:
         parametersLocation=openawsem.data_path.parameters
     if isinstance(k_contact, float) or isinstance(k_contact, int):
@@ -274,7 +367,6 @@ def contact_term(oa, k_contact=4.184, z_dependent=False, z_m=1.5, inMembrane=Fal
     # contact.setCutoffDistance(1.1)
     if periodic:
         contact.setNonbondedMethod(contact.CutoffPeriodic)
-        print('\ncontact_term is periodic')
     else:
         contact.setNonbondedMethod(contact.CutoffNonPeriodic)
     print("Contact cutoff ", contact.getCutoffDistance())
@@ -283,8 +375,46 @@ def contact_term(oa, k_contact=4.184, z_dependent=False, z_m=1.5, inMembrane=Fal
     return contact
 
 
-def contact_term_reference(oa, k_contact=4.184, z_dependent=False, z_m=1.5, inMembrane=False, membrane_center=0*angstrom, k_relative_mem=1.0, periodic=False, parametersLocation=".", burialPartOn=True, withExclusion=True, forceGroup=22,
-                gammaName="gamma.dat", burialGammaName="burial_gamma.dat", membraneGammaName="membrane_gamma.dat", r_min=0.45):
+def contact_term_reference(oa: OpenMMAWSEMSystem,
+                           k_contact: float = 4.184, 
+                           z_dependent: bool = False, 
+                           z_m: float = 1.5, 
+                           inMembrane: bool = False, 
+                           membrane_center: Quantity = 0*angstrom, 
+                           k_relative_mem: float = 1.0, 
+                           periodic: bool = False, 
+                           parametersLocation: str = ".", 
+                           burialPartOn: bool = True, 
+                           withExclusion: bool = True, 
+                           forceGroup: int = 22,
+                           gammaName: str = "gamma.dat", 
+                           burialGammaName: str = "burial_gamma.dat", 
+                           membraneGammaName: str = "membrane_gamma.dat", 
+                           r_min: float = 0.45):
+    """
+    Define the reference contact term for the OpenAWSEM simulation.
+
+    Args:
+        oa (OpenMMAWSEMSystem): The OpenAWSEM object containing the simulation data.
+        k_contact (float): The contact energy scale in kcal/mol. Default is 4.184.
+        z_dependent (bool): Flag to determine if the contact term is dependent on the z-coordinate. Default is False.
+        z_m (float): The membrane thickness in nm. Default is 1.5.
+        inMembrane (bool): Flag to determine if the contact term is within the membrane. Default is False.
+        membrane_center (Quantity): The center of the membrane in angstroms. Default is 0*angstrom.
+        k_relative_mem (float): The relative strength of the membrane contact term. Default is 1.0.
+        periodic (bool): Flag to determine if the simulation uses periodic boundary conditions. Default is False.
+        parametersLocation (str): The location of the parameter files. Default is ".".
+        burialPartOn (bool): Flag to determine if the burial term is included. Default is True.
+        withExclusion (bool): Flag to determine if exclusions are used in the contact term. Default is True.
+        forceGroup (int): The force group that the contact term belongs to. Default is 22.
+        gammaName (str): The name of the file containing the direct contact energies. Default is "gamma.dat".
+        burialGammaName (str): The name of the file containing the burial energies. Default is "burial_gamma.dat".
+        membraneGammaName (str): The name of the file containing the membrane contact energies. Default is "membrane_gamma.dat".
+        r_min (float): The minimum distance for the contact term. Default is 0.45 nm.
+
+    Returns:
+        CustomGBForce: The configured custom GB force object for the contact term.
+    """
     import pandas
     if isinstance(k_contact, float) or isinstance(k_contact, int):
         k_contact = k_contact * oa.k_awsem   # Backward comptability
@@ -425,6 +555,7 @@ def contact_term_reference(oa, k_contact=4.184, z_dependent=False, z_m=1.5, inMe
     for i in range(oa.natoms):
         particle_data+=[[gamma_se_map_1_letter[seq[oa.resi[i]]], oa.resi[i], int(i in cb_fixed)]]
     return particle_data
+
     p = pandas.DataFrame(particle_data, columns=['resName', 'resId', 'isCb'])
     p_Cb = p[p['isCb'] == 1]
     def rho(r):
@@ -533,8 +664,44 @@ def contact_term_reference(oa, k_contact=4.184, z_dependent=False, z_m=1.5, inMe
     contact.setForceGroup(forceGroup)
     return contact
 
-def index_based_contact_term(oa, gamma_folder="ff_contact", k_contact=4.184, z_dependent=False, z_m=1.5, inMembrane=False, 
-            membrane_center=0*angstrom, k_relative_mem=1.0, periodic=False, parametersLocation=".", burialPartOn=True, withExclusion=True, r_min=0.45, forceGroup=22):
+
+def index_based_contact_term(oa: OpenMMAWSEMSystem, 
+                             gamma_folder: str = "ff_contact", 
+                             k_contact: Union[float, int, Quantity] = 4.184, 
+                             z_dependent: bool = False, 
+                             z_m: float = 1.5, 
+                             inMembrane: bool = False, 
+                             membrane_center: Quantity = 0*angstrom, 
+                             k_relative_mem: float = 1.0, 
+                             periodic: bool = False, 
+                             parametersLocation: str = ".", 
+                             burialPartOn: bool = True, 
+                             withExclusion: bool = True, 
+                             r_min: float = 0.45, 
+                             forceGroup: int = 22
+                             ) -> CustomGBForce:
+    """
+    Define the index-based contact term for the OpenAWSEM simulation.
+
+    Args:
+        oa (OpenMMAWSEMSystem): The OpenAWSEM object containing the simulation data.
+        gamma_folder (str): The folder where the gamma files are located. Default is "ff_contact".
+        k_contact (Union[float, int, Quantity]): The contact energy scale. Default is 4.184 kcal/mol.
+        z_dependent (bool): Flag to determine if the contact term is dependent on the z-coordinate. Default is False.
+        z_m (float): The membrane thickness in nm. Default is 1.5.
+        inMembrane (bool): Flag to determine if the contact term is within the membrane. Default is False.
+        membrane_center (Quantity): The center of the membrane in angstroms. Default is 0*angstrom.
+        k_relative_mem (float): The relative strength of the membrane contact term. Default is 1.0.
+        periodic (bool): Flag to determine if the simulation uses periodic boundary conditions. Default is False.
+        parametersLocation (str): The location of the parameter files. Default is ".".
+        burialPartOn (bool): Flag to determine if the burial term is included. Default is True.
+        withExclusion (bool): Flag to determine if exclusions are used in the contact term. Default is True.
+        r_min (float): The minimum distance for the contact term. Default is 0.45 nm.
+        forceGroup (int): The force group that the contact term belongs to. Default is 22.
+
+    Returns:
+        CustomGBForce: The configured custom GB force object for the contact term.
+    """
     if isinstance(k_contact, float) or isinstance(k_contact, int):
         k_contact = k_contact * oa.k_awsem   # just for backward comptable
     elif isinstance(k_contact, Quantity):
@@ -709,8 +876,23 @@ def index_based_contact_term(oa, gamma_folder="ff_contact", k_contact=4.184, z_d
     return contact
 
 
+def expand_contact_table_contact_term(oa: OpenMMAWSEMSystem, 
+                                      k_contact: float = 4.184, 
+                                      periodic: bool = False, 
+                                      pre: Optional[str] = None
+                                      ) -> CustomGBForce:
+    """
+    Expand the contact table and define the contact term for the OpenAWSEM simulation.
 
-def expand_contact_table_contact_term(oa, k_contact=4.184, periodic=False, pre=None):
+    Args:
+        oa: An OpenMMAWSEMSystem which provides the simulation context.
+        k_contact: The contact energy scale in kcal/mol. Defaults to 4.184.
+        periodic: A boolean indicating if periodic boundary conditions should be used. Defaults to False.
+        pre: A string representing the prefix for the contact table files. If None, defaults to "expand_contact".
+    
+    Returns:
+        CustomGBForce: The configured custom GB force object for the contact term.
+    """
     k_contact *= oa.k_awsem
     # combine direct, burial, mediated.
     # default membrane thickness 1.5 nm
@@ -854,7 +1036,22 @@ def expand_contact_table_contact_term(oa, k_contact=4.184, periodic=False, pre=N
     return contact
 
 
-def contact_test_term(oa, k_contact=4.184, z_dependent=False, z_m=1.5):
+def contact_test_term(oa: OpenMMAWSEMSystem, 
+                      k_contact: float = 4.184, 
+                      z_dependent: bool = False, 
+                      z_m: float = 1.5
+                      ) -> CustomGBForce:
+    """Define a test contact term for the OpenAWSEM simulation.
+
+    Args:
+        oa (OpenMMAWSEMSystem): The OpenAWSEM object containing the simulation data.
+        k_contact (float): The contact energy scale in kcal/mol. Default is 4.184.
+        z_dependent (bool): Flag to determine if the contact term is dependent on the z-coordinate. Default is False.
+        z_m (float): The characteristic length scale for the membrane, in nm. Default is 1.5.
+
+    Returns:
+        CustomGBForce: The configured custom GB force object for the contact term.
+    """
     contact = CustomGBForce()
     gamma_ijm = np.zeros((2, 20, 20))
     contact.addTabulatedFunction("gamma_ijm", Discrete3DFunction(2, 20, 20, gamma_ijm.T.flatten()))
@@ -864,7 +1061,21 @@ def contact_test_term(oa, k_contact=4.184, z_dependent=False, z_m=1.5):
         contact.addParticle()
     return contact
 
-def get_pre_and_post(seq, index):
+
+def get_pre_and_post(seq: List[Any], 
+                     index: int
+                     ) -> Tuple[Any, Any]:
+    """Get the elements before and after the given index in a sequence.
+
+    Args:
+        seq: A list of elements.
+        index: The index of the element in the sequence.
+
+    Returns:
+        A tuple containing the elements before and after the given index.
+        If the index is 0, it returns the first two elements.
+        If the index is the last, it returns the last two elements.
+    """
     n = len(seq)
     if index == 0:
         return seq[0], seq[1]
@@ -873,30 +1084,19 @@ def get_pre_and_post(seq, index):
     else:
         return seq[index-1], seq[index+1]
 
-res_type_map_HP = {
-    'C': 0,
-    'M': 0,
-    'F': 0,
-    'I': 0,
-    'L': 0,
-    'V': 0,
-    'W': 0,
-    'Y': 0,
-    'A': 1,
-    'H': 1,
-    'T': 1,
-    'G': 1,
-    'P': 1,
-    'D': 1,
-    'E': 1,
-    'N': 1,
-    'Q': 1,
-    'R': 1,
-    'K': 1,
-    'S': 1
-}
 
-def get_neighbor_res_type(res_pre, res_post):
+def get_neighbor_res_type(res_pre: str, 
+                          res_post: str
+                          ) -> int:
+    """Get the type of neighboring residues based on their types.
+
+    Args:
+        res_pre (str): The type of the preceding residue.
+        res_post (str): The type of the following residue.
+
+    Returns:
+        int: An integer representing the type of the neighboring residues.
+    """
     table = np.zeros((2,2))
     table[0][0] = 0
     table[0][1] = 1
@@ -907,7 +1107,26 @@ def get_neighbor_res_type(res_pre, res_post):
     return int(table[r1][r2])
 
 
-def hybrid_contact_term(oa, k_contact=4.184, z_m=1.5, membrane_center=0*angstrom, periodic=False, hybrid_gamma_file="hybrid_contact_gamma.dat"):
+def hybrid_contact_term(oa: OpenMMAWSEMSystem, 
+                        k_contact: float = 4.184, 
+                        z_m: float = 1.5, 
+                        membrane_center: Quantity = 0*angstrom, 
+                        periodic: bool = False, 
+                        hybrid_gamma_file: str = "hybrid_contact_gamma.dat"
+                        ) -> CustomGBForce:
+    """Define a hybrid contact term for the OpenAWSEM simulation.
+
+    Args:
+        oa (OpenMMAWSEMSystem): The OpenAWSEM object containing the simulation data.
+        k_contact (float): The contact energy scale in kcal/mol. Defaults to 4.184.
+        z_m (float): The membrane thickness in nm. Defaults to 1.5.
+        membrane_center (Quantity): The center of the membrane in angstroms. Defaults to 0*angstrom.
+        periodic (bool): Flag to determine if the simulation uses periodic boundary conditions. Defaults to False.
+        hybrid_gamma_file (str): The file name containing hybrid gamma values. Defaults to "hybrid_contact_gamma.dat".
+
+    Returns:
+        CustomGBForce: The configured custom GB force object for the hybrid contact term.
+    """
     k_contact *= oa.k_awsem
     membrane_center = membrane_center.value_in_unit(nanometer)   # convert to nm
     # combine direct, burial, mediated.
@@ -1090,7 +1309,34 @@ def hybrid_contact_term(oa, k_contact=4.184, z_m=1.5, membrane_center=0*angstrom
     contact.setForceGroup(18)
     return contact
 
-def disulfide_bond_term(oa, k=1*kilocalorie_per_mole, cutoff=4.2*angstrom, k_bin=100, step_k_bin=20, rho_max=2.2, rho_near=0.2, periodic=False, withExclusion=True, forceGroup=31):
+def disulfide_bond_term(oa: OpenMMAWSEMSystem, 
+                        k: Quantity = 1 * kilocalorie_per_mole, 
+                        cutoff: Quantity = 4.2 * angstrom, 
+                        k_bin: float = 100, 
+                        step_k_bin: float = 20, 
+                        rho_max: float = 2.2, 
+                        rho_near: float = 0.2, 
+                        periodic: bool = False, 
+                        withExclusion: bool = True, 
+                        forceGroup: int = 31
+                        ) -> CustomGBForce:
+    """Define the disulfide bond term for the OpenAWSEM simulation.
+
+    Args:
+        oa (OpenMMAWSEMSystem): The OpenAWSEM object containing the simulation data.
+        k (Quantity): The spring constant for the disulfide bond term. Default is 1 kcal/mol.
+        cutoff (Quantity): The cutoff distance for the disulfide bond term. Default is 4.2 angstroms.
+        k_bin (float): The bin width for the disulfide bond term. Default is 100 nm^-1.
+        step_k_bin (float): The step size for the binning function. Default is 20 nm^-1.
+        rho_max (float): The maximum density value for the disulfide bond term. Default is 2.2.
+        rho_near (float): The near density value for the disulfide bond term. Default is 0.2.
+        periodic (bool): Flag to determine if the simulation uses periodic boundary conditions. Default is False.
+        withExclusion (bool): Flag to determine if exclusions are used in the disulfide bond term. Default is True.
+        forceGroup (int): The force group that the disulfide bond term belongs to. Default is 31.
+
+    Returns:
+        CustomGBForce: The configured custom GB force object for the disulfide bond term.
+    """
     print("Disulfide Bond term on")
     k = k.value_in_unit(kilojoule_per_mole)   # convert to kilojoule_per_mole, openMM default uses kilojoule_per_mole as energy.
     cutoff = cutoff.value_in_unit(nanometer)
@@ -1153,9 +1399,48 @@ def disulfide_bond_term(oa, k=1*kilocalorie_per_mole, cutoff=4.2*angstrom, k_bin
     return disulfide_bond
 
 
+def contact_term_shift_well_center(oa: OpenMMAWSEMSystem, 
+                                   k_contact: float = 4.184, 
+                                   z_dependent: bool = False, 
+                                   z_m: float = 1.5, 
+                                   inMembrane: bool = False, 
+                                   membrane_center: Quantity = 0*angstrom, 
+                                   k_relative_mem: float = 1.0, 
+                                   periodic: bool = False, 
+                                   parametersLocation: str = ".", 
+                                   burialPartOn: bool = True, 
+                                   withExclusion: bool = True, 
+                                   forceGroup: int = 22,
+                                   gammaName: str = "gamma.dat", 
+                                   burialGammaName: str = "burial_gamma.dat", 
+                                   membraneGammaName: str = "membrane_gamma.dat", 
+                                   r_min: float = 0.45, 
+                                   wellCenter: Optional[float] = None
+                                   ) -> CustomGBForce:
+    """Adjust the contact term by shifting the well center.
 
-def contact_term_shift_well_center(oa, k_contact=4.184, z_dependent=False, z_m=1.5, inMembrane=False, membrane_center=0*angstrom, k_relative_mem=1.0, periodic=False, parametersLocation=".", burialPartOn=True, withExclusion=True, forceGroup=22,
-                gammaName="gamma.dat", burialGammaName="burial_gamma.dat", membraneGammaName="membrane_gamma.dat", r_min=0.45, wellCenter=None):
+    Args:
+        oa: An OpenMMAWSEMSystem which provides the simulation context.
+        k_contact: The contact energy scale in kcal/mol. Defaults to 4.184.
+        z_dependent: A boolean indicating if the contact term is dependent on the z-coordinate. Defaults to False.
+        z_m: The membrane thickness in nm. Defaults to 1.5.
+        inMembrane: A boolean indicating if the contact term is within the membrane. Defaults to False.
+        membrane_center: The center of the membrane in angstroms. Defaults to 0*angstrom.
+        k_relative_mem: The relative strength of the membrane contact term. Defaults to 1.0.
+        periodic: A boolean indicating if periodic boundary conditions should be used. Defaults to False.
+        parametersLocation: The location of the parameter files. Defaults to ".".
+        burialPartOn: A boolean indicating if the burial term is included. Defaults to True.
+        withExclusion: A boolean indicating if exclusions are used in the contact term. Defaults to True.
+        forceGroup: The force group that the contact term belongs to. Defaults to 22.
+        gammaName: The name of the file containing gamma values for direct contacts. Defaults to "gamma.dat".
+        burialGammaName: The name of the file containing gamma values for burial contacts. Defaults to "burial_gamma.dat".
+        membraneGammaName: The name of the file containing gamma values for membrane contacts. Defaults to "membrane_gamma.dat".
+        r_min: The minimum distance for the contact term. Defaults to 0.45 nm.
+        wellCenter: The center of the well for the contact term. If None, the well center is not shifted. Defaults to None.
+
+    Returns:
+        CustomGBForce: The configured custom GB force object for the contact term.
+    """
     if isinstance(k_contact, float) or isinstance(k_contact, int):
         k_contact = k_contact * oa.k_awsem   # just for backward comptable
     elif isinstance(k_contact, Quantity):
@@ -1483,7 +1768,19 @@ def contact_term_shift_well_center(oa, k_contact=4.184, z_dependent=False, z_m=1
     contact.setForceGroup(forceGroup)
     return contact
 
-def burial_term(oa, k_burial=4.184, fastaFile="FastaFileMissing"):
+
+def burial_term(oa: OpenMMAWSEMSystem, 
+                k_burial: float = 4.184, 
+                fastaFile: str = "FastaFileMissing"
+                ) -> CustomGBForce:
+    """Calculate the burial term for the OpenAWSEM simulation.
+
+    Args:
+        oa (OpenMMAWSEMSystem): The OpenAWSEM object containing the simulation data.
+        k_burial (float): The burial energy scale in kcal/mol. Default is 4.184.
+        fastaFile (str): The path to the FASTA file. Default is "FastaFileMissing".
+
+    """
     k_burial *= oa.k_awsem
     burial_kappa = 4.0
     burial_ro_min = [0.0, 3.0, 6.0]
@@ -1541,6 +1838,7 @@ def burial_term(oa, k_burial=4.184, fastaFile="FastaFileMissing"):
 
     burial.setForceGroup(17)
     return burial
+
 
 '''
 # for debug purpose

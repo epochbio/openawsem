@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
+try:
+    from openmm import LangevinIntegrator, Platform, CustomIntegrator
+    from openmm.app import Simulation, PDBReporter, DCDReporter, StateDataReporter
+    from openmm.unit import picosecond, picoseconds, femtoseconds, kelvin
+except ModuleNotFoundError:
+    from simtk.openmm import LangevinIntegrator, Platform, CustomIntegrator
+    from simtk.openmm.app import Simulation, PDBReporter, DCDReporter, StateDataReporter
+    from simtk.unit import picosecond, picoseconds, femtoseconds, kelvin
+
 import os
 import sys
-import random
 import time
-from random import seed, randint
 import argparse
 import platform
-from datetime import datetime
-from time import sleep
-import fileinput
 import importlib.util
+from openawsem.openAWSEM import OpenMMAWSEMSystem
 
 try:
     OPENAWSEM_LOCATION = os.environ["OPENAWSEM_LOCATION"]
@@ -196,6 +201,7 @@ else:
     simulation.reporters.append(StateDataReporter(stdout, 1000, step=True, potentialEnergy=True, temperature=True))  # output energy and temperature during simulation
     simulation.step(int(4e5))
     simulation.saveState(os.path.join(toPath, 'output.xml'))
+    
     print("------------------Folding-------------------")
     oa = OpenMMAWSEMSystem(input_pdb_filename, k_awsem=1.0, chains=chain, xml_filename=OPENAWSEM_LOCATION+"awsem.xml", seqFromPdb=seq)  # k_awsem is an overall scaling factor that will affect the relevant temperature scales
     myForces = forces.set_up_forces(oa, submode=args.subMode, contactParameterLocation=parametersLocation)

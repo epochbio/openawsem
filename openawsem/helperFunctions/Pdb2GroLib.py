@@ -7,26 +7,28 @@
 # Last Update: 07/08/2011
 # -------------------------------------------------------------------------
 
+from Bio.PDB.PDBParser import PDBParser
+
 class Atom:
-    atom_no = 0
-    atom_name = ""
-    res_no = 0
-    res_name = ""
-    x = 0.0
-    y = 0.0
-    z = 0.0
 
-    def __init__(self, atom_no, atom_name, res_no, res_name, x, y, z, desc=''):
-        self.atom_no = atom_no
-        self.atom_name = atom_name
-        self.res_no = res_no
-        self.res_name = res_name
-        self.x = x
-        self.y = y
-        self.z = z
-        self.desc = desc
+    def __init__(self, 
+				 atom_no: int, 
+				 atom_name: str, 
+				 res_no: int, 
+				 res_name: str,
+				 xyz: tuple, 
+				 desc: str = ''):
+        """
+        Initialize an Atom instance with a tuple containing x, y, z coordinates.
 
-    def __init__(self, atom_no, atom_name, res_no, res_name, xyz, desc=''):
+        Args:
+            atom_no (int): Atom number.
+            atom_name (str): Atom name.
+            res_no (int): Residue number.
+            res_name (str): Residue name.
+            xyz (tuple): Tuple containing x, y, z coordinates.
+            desc (str): Description or additional information. Defaults to an empty string.
+        """
         self.atom_no = atom_no
         self.atom_name = atom_name
         self.res_no = res_no
@@ -37,21 +39,40 @@ class Atom:
         self.desc = desc
 
     def print_(self):
+        """
+        Print the atom details.
+        """
         print(self.atom_no, self.atom_name, self.res_no, self.res_name, self.x, self.y, self.z, self.desc)
 
     def write_(self, f):
-    	f.write( ("     "+str(self.res_no))[-5:] )
-    	f.write( ("     "+self.res_name)[-5:] )
-    	f.write( " " + (self.atom_name+"    ")[:4] )
-    	f.write( ("     "+str(self.atom_no))[-5:] )
-    	f.write( ("        "+str(round(self.x/10,3)))[-8:] )
-    	f.write( ("        "+str(round(self.y/10,3)))[-8:] )
-    	f.write( ("        "+str(round(self.z/10,3)))[-8:] )
-    	f.write("\n")
+        """
+        Write the atom details to a file in GRO format.
 
-def Pdb2Gro(pdb_file, gro_file, ch_name):
-	from Bio.PDB.PDBParser import PDBParser
+        Args:
+            f: File object to write the atom details.
+        """
+        f.write( ("     "+str(self.res_no))[-5:] )
+        f.write( ("     "+self.res_name)[-5:] )
+        f.write( " " + (self.atom_name+"    ")[:4] )
+        f.write( ("     "+str(self.atom_no))[-5:] )
+        f.write( ("        "+str(round(self.x/10,3)))[-8:] )
+        f.write( ("        "+str(round(self.y/10,3)))[-8:] )
+        f.write( ("        "+str(round(self.z/10,3)))[-8:] )
+        f.write("\n")
 
+
+def Pdb2Gro(pdb_file: str, 
+			gro_file: str, 
+			ch_name: str
+			) -> None:
+	"""
+	Convert a PDB file to a GRO file for a specified chain.
+
+	Args:
+		pdb_file: The path to the input PDB file.
+		gro_file: The path where the output GRO file will be saved.
+		ch_name: The name of the chain to be converted.
+	"""
 	p = PDBParser(PERMISSIVE=1, QUIET=True)
 
 	pdb_id = pdb_file

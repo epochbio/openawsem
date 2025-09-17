@@ -1,19 +1,39 @@
 try:
-    from openmm.app import *
-    from openmm import *
-    from openmm.unit import *
+    from openmm import CustomCompoundBondForce, Discrete2DFunction, CustomBondForce, CustomCVForce, Discrete3DFunction, CustomGBForce
+    from openmm.unit import kilojoule_per_mole, nanometers, kilocalorie_per_mole, Quantity
 except ModuleNotFoundError:
-    from simtk.openmm.app import *
-    from simtk.openmm import *
-    from simtk.unit import *
+    from simtk.openmm import CustomCompoundBondForce, Discrete2DFunction, CustomBondForce, CustomCVForce, Discrete3DFunction, CustomGBForce
+    from simtk.unit import kilojoule_per_mole, nanometers, kilocalorie_per_mole, Quantity
 import numpy as np
 import pandas as pd
 import pickle
+from typing import List, Tuple, Union, Optional, Dict, Any
+from openawsem.openAWSEM import OpenMMAWSEMSystem
+import os
+from Bio.PDB import PDBParser
+import itertools
 
-def read_reference_structure_for_q_calculation_4(oa, contact_threshold,rnative_dat, min_seq_sep=3, max_seq_sep=np.inf):
-    # use contact matrix for Q calculation
-    # this change use the canonical Qw/Qo calculation for reference Q
-    # for Qw calculation is 0; Qo is 1;
+
+def read_reference_structure_for_q_calculation_4(oa: OpenMMAWSEMSystem, 
+                                                 contact_threshold: float, 
+                                                 rnative_dat: str, 
+                                                 min_seq_sep: int = 3, 
+                                                 max_seq_sep: float = np.inf
+                                                 ) -> List[List[Union[int, float, Quantity]]]:
+    """Read the reference structure for Q calculation using a contact matrix.
+
+    This function uses the canonical Qw/Qo calculation for reference Q, where Qw is 0 and Qo is 1.
+
+    Args:
+        oa: An OpenMMAWSEMSystem which provides access to the simulation system.
+        contact_threshold: The distance threshold to consider a contact.
+        rnative_dat: The path to the native contact map data file.
+        min_seq_sep: The minimum sequence separation for considering a contact. Default is 3.
+        max_seq_sep: The maximum sequence separation for considering a contact. Default is infinity.
+
+    Returns:
+        A list of lists containing the indices of interacting residues and their interaction parameters.
+    """
     in_rnative = np.loadtxt(rnative_dat)  # read in rnative_dat file for Q calculation
     structure_interactions = []
     chain_start = 0
@@ -38,8 +58,25 @@ def read_reference_structure_for_q_calculation_4(oa, contact_threshold,rnative_d
     return structure_interactions
 
 
+def q_value_dat(oa: OpenMMAWSEMSystem, 
+                contact_threshold: float, 
+                rnative_dat: str = "rnative.dat", 
+                min_seq_sep: int = 3, 
+                max_seq_sep: float = np.inf
+                ) -> CustomBondForce:
+    """
+    Calculate the Q value from the reference structure data.
 
-def q_value_dat(oa, contact_threshold, rnative_dat="rnative.dat", min_seq_sep=3, max_seq_sep=np.inf):
+    Args:
+        oa: An OpenMMAWSEMSystem which provides access to the simulation system.
+        contact_threshold: The distance threshold to consider a contact.
+        rnative_dat: The path to the native contact map data file. Default is "rnative.dat".
+        min_seq_sep: The minimum sequence separation for considering a contact. Default is 3.
+        max_seq_sep: The maximum sequence separation for considering a contact. Default is infinity.
+
+    Returns:
+        A CustomBondForce object representing the Q value interactions.
+    """
     ### Added by Mingchen
     ### this function is solely used for template based modelling from rnative.dat file
     ### for details, refer to Chen, Lin & Lu Wolynes JCTC 2018
@@ -55,7 +92,22 @@ def q_value_dat(oa, contact_threshold, rnative_dat="rnative.dat", min_seq_sep=3,
     return qvalue_dat
 
 
-def tbm_q_term(oa, k_tbm_q, rnative_dat="rnative.dat", tbm_q_min_seq_sep=3, tbm_q_cutoff=0.2*nanometers, tbm_q_well_width=0.1, target_q=1.0, forceGroup=26):
+def tbm_q_term(oa: OpenMMAWSEMSystem, k_tbm_q: float, rnative_dat: str = "rnative.dat", tbm_q_min_seq_sep: int = 3, tbm_q_cutoff: Quantity = 0.2*nanometers, tbm_q_well_width: float = 0.1, target_q: float = 1.0, forceGroup: int = 26) -> CustomCVForce:
+    """Calculate the template-based modeling Q term.
+
+    Args:
+        oa: An OpenMMAWSEMSystem which provides access to the simulation system.
+        k_tbm_q: The force constant for the TBM Q term.
+        rnative_dat: The path to the native contact map data file. Default is "rnative.dat".
+        tbm_q_min_seq_sep: The minimum sequence separation for considering a contact. Default is 3.
+        tbm_q_cutoff: The cutoff distance for considering a contact. Default is 0.2 nanometers.
+        tbm_q_well_width: The width of the well for the TBM Q term. Default is 0.1.
+        target_q: The target Q value for the template-based modeling. Default is 1.0.
+        forceGroup: The force group to which this force will be added. Default is 26.
+
+    Returns:
+        A CustomCVForce object that implements the TBM Q term.
+    """
     ### Added by Mingchen Chen
     ### this function is solely used for template based modelling from rnative.dat file
     ### for details, refer to Chen, Lin & Lu Wolynes JCTC 2018
@@ -67,9 +119,33 @@ def tbm_q_term(oa, k_tbm_q, rnative_dat="rnative.dat", tbm_q_min_seq_sep=3, tbm_
     return tbm_q
 
 
+def fragment_memory_term(oa: OpenMMAWSEMSystem, 
+                         k_fm: float=0.04184, 
+                         frag_file_list_file: str="./frag.mem",
+                         npy_frag_table: str="./frag_table.npy", 
+                         min_seq_sep: int=3, 
+                         max_seq_sep: int=9,
+                         fm_well_width: float=0.1, 
+                         UseSavedFragTable: bool=True, 
+                         caOnly: bool=False,
+                         forceGroup: int=23):
+    """Calculate the fragment memory term of the potential.
 
-def fragment_memory_term(oa, k_fm=0.04184, frag_file_list_file="./frag.mem", npy_frag_table="./frag_table.npy",
-                    min_seq_sep=3, max_seq_sep=9, fm_well_width=0.1, UseSavedFragTable=True, caOnly=False, forceGroup=23):
+    Args:
+        oa: An OpenMMAWSEMSystem which provides access to the simulation system.
+        k_fm: The force constant for the fragment memory term. Default is 0.04184 kJ/mol.
+        frag_file_list_file: The path to the fragment file list. Default is "./frag.mem".
+        npy_frag_table: The path to the numpy fragment table file. Default is "./frag_table.npy".
+        min_seq_sep: The minimum sequence separation for considering a fragment. Default is 3.
+        max_seq_sep: The maximum sequence separation for considering a fragment. Default is 9.
+        fm_well_width: The width of the well for the fragment memory potential. Default is 0.1 nm.
+        UseSavedFragTable: Flag to indicate if a saved fragment table should be used. Default is True.
+        caOnly: Flag to indicate if only C-alpha atoms should be used. Default is False.
+        forceGroup: The force group to which this force will be added. Default is 23.
+
+    Returns:
+        A CustomBondForce object that implements the fragment memory term.
+    """
     # 0.8368 = 0.01 * 4.184 # in kJ/mol, converted from default value in LAMMPS AWSEM
     k_fm *= oa.k_awsem
     frag_table_rmin = 0
@@ -104,7 +180,7 @@ def fragment_memory_term(oa, k_fm=0.04184, frag_file_list_file="./frag.mem", npy
         frag_file_list = []
     else:
         print(f"Loading Fragment files(Gro files)")
-        frag_file_list = pd.read_csv(frag_file_list_file, skiprows=4, sep="\s+", names=["location", "target_start", "fragment_start", "frag_len", "weight"])
+        frag_file_list = pd.read_csv(frag_file_list_file, skiprows=4, sep=r"\s+", names=["location", "target_start", "fragment_start", "frag_len", "weight"])
         interaction_list = set()
     for frag_index in range(len(frag_file_list)):
         location = frag_file_list["location"].iloc[frag_index]
@@ -113,7 +189,7 @@ def fragment_memory_term(oa, k_fm=0.04184, frag_file_list_file="./frag.mem", npy
         weight = frag_file_list["weight"].iloc[frag_index]
         target_start = frag_file_list["target_start"].iloc[frag_index]  # residue id
         fragment_start = frag_file_list["fragment_start"].iloc[frag_index]  # residue id
-        frag = pd.read_csv(frag_name, skiprows=2, sep="\s+", header=None, names=["Res_id", "Res", "Type", "i", "x", "y", "z"])
+        frag = pd.read_csv(frag_name, skiprows=2, sep=r"\s+", header=None, names=["Res_id", "Res", "Type", "i", "x", "y", "z"])
         frag = frag.query(f"Res_id >= {fragment_start} and Res_id < {fragment_start+frag_len} and (Type == 'CA' or Type == 'CB')")
         w_m = weight
         gamma_ij = 1
@@ -154,6 +230,7 @@ def fragment_memory_term(oa, k_fm=0.04184, frag_file_list_file="./frag.mem", npy
 
                 raw_frag_table[correspond_target_i][i_j_sep] += w_m*gamma_ij*np.exp((r_array-rm)**2/(-2.0*sigma_ij**2))
                 interaction_list.add((correspond_target_i, correspond_target_j))
+
     if (not os.path.isfile(frag_table_file)) or (not UseSavedFragTable):
         # Reduce memory usage.
         print("Saving fragment table as npy file to speed up future calculation.")
@@ -165,12 +242,14 @@ def fragment_memory_term(oa, k_fm=0.04184, frag_file_list_file="./frag.mem", npy
             assert(ij_sep > 0)
             frag_table[index] = raw_frag_table[i][ij_sep]
             interaction_pair_to_bond_index[(i,j)] = index
+
         # np.save(frag_table_file, (frag_table, interaction_list, interaction_pair_to_bond_index))
         with open(frag_table_file, 'wb') as f:
             pickle.dump((frag_table, interaction_list, interaction_pair_to_bond_index), f)
         print(f"All gro files information have been stored in the {frag_table_file}. \
             \nYou might want to set the 'UseSavedFragTable'=True to speed up the loading next time. \
             \nBut be sure to remove the .npy file if you modify the .mem file. otherwise it will keep using the old frag memeory.")
+        
     # fm = CustomNonbondedForce(f"-k_fm*((v2-v1)*r+v1*r_2-v2*r_1)/(r_2-r_1); \
     #                             v1=frag_table(index_smaller, sep, r_index_1);\
     #                             v2=frag_table(index_smaller, sep, r_index_2);\
@@ -209,16 +288,40 @@ def fragment_memory_term(oa, k_fm=0.04184, frag_file_list_file="./frag.mem", npy
 
     fm.addTabulatedFunction("frag_table",
             Discrete2DFunction(len(interaction_list), r_table_size, frag_table.T.flatten()))
-    
-    if oa.periodic:
-        fm.setUsesPeriodicBoundaryConditions(True)
-        print('\nfragment_memory_term is periodic')
+
 
     fm.setForceGroup(forceGroup)
     return fm
 
 
-def read_memory(oa, pdb_file, chain_name, target_start, fragment_start, length, weight, min_seq_sep, max_seq_sep, am_well_width=0.1):
+def read_memory(oa: OpenMMAWSEMSystem, 
+                pdb_file: str, 
+                chain_name: str, 
+                target_start: int, 
+                fragment_start: int, 
+                length: int, 
+                weight: float, 
+                min_seq_sep: int,
+                max_seq_sep: int, 
+                am_well_width: float=0.1
+                ) -> List[List[Union[int, float]]]:
+    """Reads a PDB file and creates memory interactions based on the specified parameters.
+
+    Args:
+        oa: An OpenMMAWSEMSystem which provides access to the simulation system.
+        pdb_file: The path to the PDB file.
+        chain_name: The name of the chain from which to read the residues.
+        target_start: The starting index of the target sequence.
+        fragment_start: The starting index of the fragment sequence within the PDB file.
+        length: The number of residues to read from the fragment_start.
+        weight: The weight of the memory interaction.
+        min_seq_sep: The minimum sequence separation for considering an interaction.
+        max_seq_sep: The maximum sequence separation for considering an interaction.
+        am_well_width: The width of the associative memory well. Defaults to 0.1.
+
+    Returns:
+        A list of memory interactions, each interaction is a list containing the indices of the two particles involved and their interaction parameters.
+    """
     memory_interactions = []
 
     # if not os.path.isfile(pdb_file):
@@ -266,7 +369,30 @@ def read_memory(oa, pdb_file, chain_name, target_start, fragment_start, length, 
                 memory_interactions.append(memory_interaction)
     return memory_interactions
 
-def associative_memory_term(oa, memories, k_am=0.8368, min_seq_sep=3, max_seq_sep=9, am_well_width=0.1):
+
+def associative_memory_term(oa: OpenMMAWSEMSystem, 
+                            memories: List[Tuple], 
+                            k_am: float = 0.8368, 
+                            min_seq_sep: int = 3, 
+                            max_seq_sep: int = 9, 
+                            am_well_width: float = 0.1
+                            ) -> CustomBondForce:
+    """Calculate the associative memory term for the OpenAWSEM simulation.
+
+    This function computes the associative memory term, which is a part of the potential energy that
+    encourages the protein to adopt a conformation close to one or more reference structures (memories).
+
+    Args:
+        oa: An OpenMMAWSEMSystem which provides access to the simulation system.
+        memories: A list of tuples containing memory information. Each tuple consists of the pdbid, chain, target, fragment, length, and weight.
+        k_am: The force constant for the associative memory term. Default is 0.8368 kJ/mol, converted from default value in LAMMPS AWSEM.
+        min_seq_sep: The minimum sequence separation for the associative memory term. Default is 3.
+        max_seq_sep: The maximum sequence separation for the associative memory term. Default is 9.
+        am_well_width: The well width for the associative memory potential. Default is 0.1 nm.
+
+    Returns:
+        A CustomBondForce object that implements the associative memory term.
+    """
     # 0.8368 = 0.2 * 4.184 # in kJ/mol, converted from default value in LAMMPS AWSEM
     #pdbid #chain #target #fragment #length #weight
     # multiply interaction strength by overall scaling
@@ -285,9 +411,50 @@ def associative_memory_term(oa, memories, k_am=0.8368, min_seq_sep=3, max_seq_se
     return am
 
 
+def density_dependent_associative_memory_term(oa: OpenMMAWSEMSystem, 
+                                                memories: List[Tuple], 
+                                                k_am_dd: float = 1.0, 
+                                                am_dd_min_seq_sep: int = 3, 
+                                                am_dd_max_seq_sep: int = 9, 
+                                                eta_density: float = 50, 
+                                                r_density_min: float = .45, 
+                                                r_density_max: float = .65, 
+                                                density_alpha: float = 1.0, 
+                                                density_normalization: float = 2.0, 
+                                                rho0: float = 2.6, 
+                                                am_well_width: float = 0.1, 
+                                                density_min_seq_sep: int = 10, 
+                                                density_only_from_native_contacts: bool = False, 
+                                                density_pdb_file: Optional[str] = None, 
+                                                density_chain_name: Optional[str] = None, 
+                                                density_native_contact_min_seq_sep: int = 4, 
+                                                density_native_contact_threshold: Quantity = 0.8*nanometers
+                                            ) -> CustomGBForce:
+    """Create a density dependent associative memory term for the OpenAWSEM simulation.
 
-def density_dependent_associative_memory_term(oa, memories, k_am_dd=1.0, am_dd_min_seq_sep=3, am_dd_max_seq_sep=9, eta_density=50, r_density_min=.45, r_density_max=.65, density_alpha=1.0, density_normalization=2.0, rho0=2.6, am_well_width=0.1, density_min_seq_sep=10, density_only_from_native_contacts=False, density_pdb_file=None, density_chain_name=None, density_native_contact_min_seq_sep=4, density_native_contact_threshold=0.8*nanometers):
+    Args:
+        oa: An OpenMMAWSEMSystem which provides access to the simulation system.
+        memories: A list of tuples containing memory information.
+        k_am_dd: The force constant for the associative memory term. Default is 1.0.
+        am_dd_min_seq_sep: The minimum sequence separation for the associative memory term. Default is 3.
+        am_dd_max_seq_sep: The maximum sequence separation for the associative memory term. Default is 9.
+        eta_density: The density eta parameter. Default is 50.
+        r_density_min: The minimum density radius. Default is 0.45 nm.
+        r_density_max: The maximum density radius. Default is 0.65 nm.
+        density_alpha: The density alpha parameter. Default is 1.0.
+        density_normalization: The density normalization parameter. Default is 2.0.
+        rho0: The reference density value. Default is 2.6.
+        am_well_width: The well width for the associative memory potential. Default is 0.1 nm.
+        density_min_seq_sep: The minimum sequence separation for density calculation. Default is 10.
+        density_only_from_native_contacts: Flag to indicate if density is calculated only from native contacts. Default is False.
+        density_pdb_file: The PDB file used for determining native contacts if density_only_from_native_contacts is True. Default is None.
+        density_chain_name: The chain name used for determining native contacts if density_only_from_native_contacts is True. Default is None.
+        density_native_contact_min_seq_sep: The minimum sequence separation for native contact determination. Default is 4.
+        density_native_contact_threshold: The distance threshold for native contact determination. Default is 0.8 nm.
 
+    Returns:
+        A CustomGBForce object with the density dependent associative memory term applied.
+    """
     k_am_dd *= oa.k_awsem
 
     am_dd = CustomGBForce()
@@ -364,10 +531,28 @@ def density_dependent_associative_memory_term(oa, memories, k_am_dd=1.0, am_dd_m
 
     return am_dd
 
-def read_amhgo_structure(oa, pdb_file, chain_name, amhgo_min_seq_sep=4, amhgo_contact_threshold=0.8*nanometers, amhgo_well_width=0.1):
+
+def read_amhgo_structure(oa: OpenMMAWSEMSystem, 
+                         pdb_file: str, 
+                         chain_name: str, 
+                         amhgo_min_seq_sep: int = 4, 
+                         amhgo_contact_threshold: float = 0.8*nanometers, 
+                         amhgo_well_width: float = 0.1
+                         ) -> List[List[Union[int, List[float]]]]:
+    """Reads the structure from a pdb file and identifies contacts based on the AMH-GO model.
+
+    Args:
+        oa: An OpenMMAWSEMSystem which provides access to the simulation system.
+        pdb_file: The path to the pdb file containing the structure.
+        chain_name: The name of the chain within the pdb file to analyze.
+        amhgo_min_seq_sep: The minimum sequence separation for contacts to be considered. Default is 4.
+        amhgo_contact_threshold: The distance threshold below which two atoms are considered to be in contact. Default is 0.8 nanometers.
+        amhgo_well_width: The width of the potential well for the contacts. Default is 0.1.
+
+    Returns:
+        A list of lists, where each inner list represents a contact interaction. Each interaction is defined by the indices of the interacting atoms and a list containing the interaction parameters [gamma_ij, r_ijN, sigma_ij].
+    """
     structure_interactions = []
-    from Bio.PDB import PDBParser
-    import itertools
     parser = PDBParser()
     structure = parser.get_structure('X', pdb_file)
     chain = structure[0][chain_name]
@@ -411,8 +596,30 @@ def read_amhgo_structure(oa, pdb_file, chain_name, amhgo_min_seq_sep=4, amhgo_co
                         structure_interactions.append(structure_interaction)
     return structure_interactions
 
-def additive_amhgo_term(oa, pdb_file, chain_name, k_amhgo=4.184, amhgo_min_seq_sep=3, amhgo_contact_threshold=0.8*nanometers, amhgo_well_width=0.1, forceGroup=22):
-    import itertools
+
+def additive_amhgo_term(oa: OpenMMAWSEMSystem, 
+                        pdb_file: str, 
+                        chain_name: str, 
+                        k_amhgo: float = 4.184, 
+                        amhgo_min_seq_sep: int = 3, 
+                        amhgo_contact_threshold: Quantity = 0.8*nanometers, 
+                        amhgo_well_width: float = 0.1, 
+                        forceGroup: int = 22):
+    """Add an AMH-GO term to the OpenAWSEM simulation.
+
+    Args:
+        oa: An OpenMMAWSEMSystem which provides access to the simulation system.
+        pdb_file: Path to the PDB file containing the structure.
+        chain_name: The name of the chain within the PDB file to be used.
+        k_amhgo: The force constant for the AMH-GO term. Default is 4.184 (kilojoules per mole).
+        amhgo_min_seq_sep: The minimum sequence separation for which the AMH-GO term is applied. Default is 3 residues.
+        amhgo_contact_threshold: The cutoff distance for considering a contact in the AMH-GO term. Default is 0.8 nanometers.
+        amhgo_well_width: The width of the potential well for the AMH-GO term. Default is 0.1 nanometers.
+        forceGroup: The force group to which this force will be added. Default is 22.
+
+    Returns:
+        A CustomBondForce object that implements the AMH-GO term.
+    """
     # multiply interaction strength by overall scaling
     print("AMH-GO structure based term is ON")
     k_amhgo *= oa.k_awsem
@@ -432,14 +639,34 @@ def additive_amhgo_term(oa, pdb_file, chain_name, k_amhgo=4.184, amhgo_min_seq_s
     amhgo.setForceGroup(forceGroup)
     return amhgo
 
-def er_term(oa, k_er=4.184, er_min_seq_sep=2, er_cutoff=99.0, er_well_width=0.1, forceGroup=25):
+
+def er_term(oa: OpenMMAWSEMSystem, 
+            k_er: float = 4.184, 
+            er_min_seq_sep: int = 2, 
+            er_cutoff: float = 99.0, 
+            er_well_width: float = 0.1, 
+            forceGroup: int = 25
+            ) -> CustomBondForce:
+    """
+    Define the evolutionary coupling term (ER term) in the force field.
+
+    Args:
+        oa: An OpenMMAWSEMSystem which provides access to the simulation system.
+        k_er: The force constant for the ER term. Default is 4.184 (kilojoules per mole).
+        er_min_seq_sep: The minimum sequence separation for which the ER term is applied. Default is 2 residues.
+        er_cutoff: The cutoff distance for considering a contact in the ER term. Default is 99.0 angstroms.
+        er_well_width: The width of the potential well for the ER term. Default is 0.1 nanometers.
+        forceGroup: The force group to which this force will be added. Default is 25.
+
+    Returns:
+        A CustomBondForce object that implements the ER term.
+    """
     ### this is a structure prediction related term; Adapted from Sirovitz Schafer Wolynes 2017 Protein Science;
     ### See original papers for reference: Make AWSEM AWSEM-ER with Evolutionary restrictions
     ### ER restrictions can be obtained from multiple sources (RaptorX, deepcontact, and Gremlin)
     ### term modified from amh-go term, and the current strength seems to be high, and needs to be lowered somehow.
     ### amh-go normalization factor will be added soon. Based on Eastwood Wolynes 2000 JCP
     print("ER term is ON")
-    import itertools
     k_er *= oa.k_awsem
     # create contact force
     er = CustomBondForce("-k_er*gamma_ij*exp(-(r-r_ijN)^2/(2*sigma_ij^2))")
@@ -477,7 +704,28 @@ def er_term(oa, k_er=4.184, er_min_seq_sep=2, er_cutoff=99.0, er_well_width=0.1,
     er.setForceGroup(forceGroup)
     return er
 
-def machine_learning_term(oa, k=1*kilocalorie_per_mole, dataFile="dist.npz", UseSavedFile=False, saved_file="ml_data.npz", forceGroup=4):
+
+def machine_learning_term(oa: OpenMMAWSEMSystem, 
+                          k: Quantity=1*kilocalorie_per_mole, 
+                          dataFile: str="dist.npz", 
+                          UseSavedFile: bool=False, 
+                          saved_file: str="ml_data.npz", 
+                          forceGroup: int=4
+                          ) -> CustomCompoundBondForce:
+    """
+    Define a machine learning-based potential term for the OpenAWSEM simulation.
+
+    Args:
+        oa: An OpenMMAWSEMSystem which provides access to the simulation system.
+        k: The force constant for the machine learning term. Default is 1 kcal/mol.
+        dataFile: The file path to the input data for the machine learning model. Default is "dist.npz".
+        UseSavedFile: A boolean indicating whether to use a saved file with precomputed interactions. Default is False.
+        saved_file: The file path to the saved file with precomputed interactions. Default is "ml_data.npz".
+        forceGroup: The force group to which this force will be added. Default is 4.
+
+    Returns:
+        A CustomCompoundBondForce object that implements the machine learning-based potential.
+    """
     k_ml = k.value_in_unit(kilojoule_per_mole)   # convert to kilojoule_per_mole, openMM default uses kilojoule_per_mole as energy.
     k_ml = k_ml * oa.k_awsem
 
@@ -547,17 +795,33 @@ def machine_learning_term(oa, k=1*kilocalorie_per_mole, dataFile="dist.npz", Use
     return ml
 
 
+def machine_learning_dihedral_omega_angle_term(oa: OpenMMAWSEMSystem, 
+                                               k: Quantity=1*kilocalorie_per_mole, 
+                                               dataFile: str="omega.npz", 
+                                               UseSavedFile: bool=False, 
+                                               saved_file: str="ml_data.npz", 
+                                               forceGroup: int=4
+                                               ) -> 'CustomCompoundBondForce':
+    """
+    Define a machine learning term for dihedral omega angles.
 
-def machine_learning_dihedral_omega_angle_term(oa, k=1*kilocalorie_per_mole, dataFile="omega.npz", UseSavedFile=False, saved_file="ml_data.npz", forceGroup=4):
+    Args:
+        oa: An OpenMMAWSEMSystem which provides access to the simulation system.
+        k: The force constant for the dihedral omega angle term. Default is 1 kcal/mol.
+        dataFile: The file name of the data file containing omega angle information. Default is "omega.npz".
+        UseSavedFile: A boolean indicating whether to use a saved file. Default is False.
+        saved_file: The file name to save the machine learning data. Default is "ml_data.npz".
+        forceGroup: The force group to which this force will be added. Default is 4.
+
+    Returns:
+        A CustomCompoundBondForce object that implements the machine learning dihedral omega angle term.
+    """
     k_ml_angle = k.value_in_unit(kilojoule_per_mole)   # convert to kilojoule_per_mole, openMM default uses kilojoule_per_mole as energy.
     k_ml_angle = k_ml_angle * oa.k_awsem
 
-
     omega = np.load(dataFile)
 
-
     omegaspline = omega["omegaspline"]
-
 
     omega = "-3.53429174 -3.27249235 -3.01069296 -2.74889357 -2.48709418 -2.2252948\
     -1.96349541 -1.70169602 -1.43989663 -1.17809725 -0.91629786 -0.65449847\
@@ -566,7 +830,6 @@ def machine_learning_dihedral_omega_angle_term(oa, k=1*kilocalorie_per_mole, dat
     2.74889357  3.01069296  3.27249235  3.53429174"
 
     omega_x = [float(a) for a in omega.split()]
-
 
     # spline fit
     x = omega_x
@@ -629,7 +892,22 @@ def machine_learning_dihedral_omega_angle_term(oa, k=1*kilocalorie_per_mole, dat
     return ml
 
 
-def machine_learning_dihedral_theta_angle_term(oa, k=1*kilocalorie_per_mole, dataFile="theta.npz", forceGroup=4):
+def machine_learning_dihedral_theta_angle_term(oa: OpenMMAWSEMSystem, 
+                                               k: Quantity=1*kilocalorie_per_mole, 
+                                               dataFile: str="theta.npz", 
+                                               forceGroup: int=4
+                                               ) -> CustomCompoundBondForce:
+    """Calculate the machine learning dihedral theta angle term.
+
+    Args:
+        oa: An OpenMMAWSEMSystem which provides access to the simulation system.
+        k: The force constant for the dihedral theta angle term. Default is 1 kcal/mol.
+        dataFile: The name of the file containing theta angle data. Default is "theta.npz".
+        forceGroup: The force group to which this force will be added. Default is 4.
+
+    Returns:
+        A CustomCompoundBondForce object that implements the machine learning dihedral theta angle term.
+    """
     k_ml_angle = k.value_in_unit(kilojoule_per_mole)   # convert to kilojoule_per_mole, openMM default uses kilojoule_per_mole as energy.
     k_ml_angle = k_ml_angle * oa.k_awsem
 
@@ -709,7 +987,21 @@ def machine_learning_dihedral_theta_angle_term(oa, k=1*kilocalorie_per_mole, dat
     return ml
 
 
-def machine_learning_dihedral_phi_angle_term(oa, k=1*kilocalorie_per_mole, dataFile="phi.npz", forceGroup=4):
+def machine_learning_dihedral_phi_angle_term(oa: OpenMMAWSEMSystem, 
+                                             k: Quantity=1*kilocalorie_per_mole, 
+                                             dataFile: str="phi.npz", 
+                                             forceGroup: int=4):
+    """Calculate the machine learning dihedral phi angle term.
+
+    Args:
+        oa: An OpenMMAWSEMSystem which provides access to the simulation system.
+        k: The force constant for the dihedral phi angle term. Default is 1 kcal/mol.
+        dataFile: The path to the data file containing phi angle information. Default is "phi.npz".
+        forceGroup: The force group to which this force will be added. Default is 4.
+
+    Returns:
+        A CustomCompoundBondForce object that implements the machine learning dihedral phi angle term.
+    """
     k_ml_angle = k.value_in_unit(kilojoule_per_mole)   # convert to kilojoule_per_mole, openMM default uses kilojoule_per_mole as energy.
     k_ml_angle = k_ml_angle * oa.k_awsem
 

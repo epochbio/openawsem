@@ -315,18 +315,11 @@ for record in SeqIO.parse(handle, "fasta"):
             if not os.path.isfile(indexFile):
                 # generate fasta file
                 if not os.path.isfile(pdbSeqres):
-                    import urllib
+                    print(pdbSeqres)
                     print("Need to download pdb_seqres.txt from PDB!")
-                    print("Downloading pdb_seqres.txt from ftp://ftp.wwpdb.org/pub/pdb/derived_data/pdb_seqres.txt...")
-                    url = "ftp://ftp.wwpdb.org/pub/pdb/derived_data/pdb_seqres.txt"
-                    try:
-                        urllib.request.urlretrieve(url, pdbSeqres)
-                        print(f"Download complete. Saved to {pdbSeqres}")
-                    except urllib.error.URLError as e:
-                        print(f"Error downloading file: {e.reason}")
-                    except Exception as e:
-                        print(f"An error occurred: {e}")
-                    print(f"Download complete. Saved to {pdbSeqres}")
+                    print("ftp://ftp.wwpdb.org/pub/pdb/derived_data/pdb_seqres.txt")
+                    print("Copy to $HOME/opt/script/")
+                    exit()
                 fastaFile = pdbID + '_' + chainID.upper()
                 exeline = "grep -A1 " + fastaFile + " " + pdbSeqres + " > ./tmp.fasta"
                 print("generating fastaFile: ", fastaFile)

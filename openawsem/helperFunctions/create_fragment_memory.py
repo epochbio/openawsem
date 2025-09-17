@@ -10,9 +10,38 @@ import argparse
 from pathlib import Path
 
 
-def create_fragment_memories(database, fasta_file, memories_per_position, brain_damage, fragment_length, 
-         pdb_dir, index_dir, frag_lib_dir, failed_pdb_list_file, pdb_seqres,
-         weight, evalue_threshold, cutoff_identical):
+
+def create_fragment_memories(database: Path, 
+                             fasta_file: Path, 
+                             memories_per_position: int, 
+                             brain_damage: float, 
+                             fragment_length: int, 
+                             pdb_dir: Path, 
+                             index_dir: Path, 
+                             frag_lib_dir: Path, 
+                             failed_pdb_list_file: Path, 
+                             pdb_seqres: Path, 
+                             weight: float, 
+                             evalue_threshold: float, 
+                             cutoff_identical: float):
+    """
+    Create fragment memories for protein structure prediction.
+
+    Args:
+        database (Path): Path to the database.
+        fasta_file (Path): Path to the FASTA file containing the protein sequence.
+        memories_per_position (int): Number of memories per position.
+        brain_damage (float): Parameter related to the diversity of fragment selection.
+        fragment_length (int): Length of the fragments to be generated.
+        pdb_dir (Path): Directory where PDB files are stored.
+        index_dir (Path): Directory where index files are stored.
+        frag_lib_dir (Path): Directory where fragment library files are stored.
+        failed_pdb_list_file (Path): File listing PDBs that failed to download.
+        pdb_seqres (Path): File containing PDB sequence information.
+        weight (float): Weight parameter for fragment selection.
+        evalue_threshold (float): E-value threshold for fragment selection.
+        cutoff_identical (float): Cutoff for identical fragments.
+    """
         # set up directories
     pdb_dir.mkdir(exist_ok=True)
     index_dir.mkdir(exist_ok=True)
@@ -287,18 +316,11 @@ def create_fragment_memories(database, fasta_file, memories_per_position, brain_
                 if not os.path.isfile(indexFile):
                     # generate fasta file
                     if not os.path.isfile(pdb_seqres):
-                        import urllib
+                        print(pdb_seqres)
                         print("Need to download pdb_seqres.txt from PDB!")
-                        print("Downloading pdb_seqres.txt from ftp://ftp.wwpdb.org/pub/pdb/derived_data/pdb_seqres.txt...")
-                        url = "ftp://ftp.wwpdb.org/pub/pdb/derived_data/pdb_seqres.txt"
-                        try:
-                            urllib.request.urlretrieve(url, pdb_seqres)
-                            print(f"Download complete. Saved to {pdb_seqres}")
-                        except urllib.error.URLError as e:
-                            print(f"Error downloading file: {e.reason}")
-                        except Exception as e:
-                            print(f"An error occurred: {e}")
-                        print(f"Download complete. Saved to {pdb_seqres}")
+                        print("ftp://ftp.wwpdb.org/pub/pdb/derived_data/pdb_seqres.txt")
+                        print("Copy to $HOME/opt/script/")
+                        exit()
                     fastaFile = pdbID + '_' + chainID.upper()
                     exeline = "grep -A1 " + fastaFile + " " + pdb_seqres + " > ./tmp.fasta"
                     print("generating fastaFile: ", fastaFile)

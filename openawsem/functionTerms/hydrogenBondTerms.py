@@ -1,42 +1,87 @@
 try:
-    from openmm.app import *
-    from openmm import *
-    from openmm.unit import *
+    from openmm import CustomCompoundBondForce, Discrete2DFunction, CustomHbondForce
+    from openmm.unit import nanometer, kilojoule_per_mole, angstrom, kilocalorie_per_mole, Quantity, kilocalories_per_mole
 except ModuleNotFoundError:
-    from simtk.openmm.app import *
-    from simtk.openmm import *
-    from simtk.unit import *
+    from simtk.openmm import CustomCompoundBondForce, Discrete2DFunction, CustomHbondForce
+    from simtk.unit import nanometer, kilojoule_per_mole, angstrom, kilocalorie_per_mole, Quantity, kilocalories_per_mole
 import numpy as np
 from pathlib import Path
+import os
 import openawsem
+from typing import List, Tuple, Union, Optional, Dict, Any
+from openawsem.openAWSEM import OpenMMAWSEMSystem
+
 
 se_map_1_letter = {'A': 0,  'P': 1,  'K': 2,  'N': 3,  'R': 4,
                    'F': 5,  'D': 6,  'Q': 7,  'E': 8,  'G': 9,
                    'I': 10, 'H': 11, 'L': 12, 'C': 13, 'M': 14,
                    'S': 15, 'T': 16, 'Y': 17, 'V': 18, 'W': 19}
 
-def isChainStart(residueId, chain_starts, n=2):
-    # return true if residue is near chain starts.
-    # n=0 means always return False
-    # n=1 means only return True if residue is the the first residue of a chain.
-    # n=2 means return True if residue is the first or the one nearest to the first residue of a chain.
+
+def isChainStart(residueId: int, 
+                 chain_starts: List[int], 
+                 n: int = 2
+                 ) -> bool:
+    """Determine if a residue is near the start of a chain within a given range.
+
+    Args:
+        residueId: An integer representing the ID of the residue.
+        chain_starts: A list of integers representing the starting residue IDs of each chain.
+        n: An integer representing the range within which to consider a residue at the start of a chain.
+           n=0 means always return False.
+           n=1 means only return True if residue is the first residue of a chain.
+           n=2 means return True if residue is the first or the one nearest to the first residue of a chain.
+
+    Returns:
+        A boolean indicating whether the residue is near the start of a chain.
+    """
     atBegin = False
     for i in range(n):
         if (residueId-i) in chain_starts:
             atBegin = True
     return atBegin
 
-def isChainEnd(residueId, chain_ends, n=2):
-    # return true if residue is near chain ends.
-    # n=0 means always return False
-    # n=1 means only return True if residue is the the last residue of a chain.
-    # n=2 means return True if residue is the last or the one nearest to the last residue of a chain.
+
+def isChainEnd(residueId: int, 
+               chain_ends: List[int], 
+               n: int = 2
+               ) -> bool:
+    """Determine if a residue is near the end of a chain.
+
+    Args:
+        residueId: An integer representing the ID of the residue.
+        chain_ends: A list of integers representing the ending residue IDs of each chain.
+        n: An integer representing the range within which to consider a residue at the end of a chain.
+           n=0 means always return False.
+           n=1 means only return True if residue is the last residue of a chain.
+           n=2 means return True if residue is the last or the one nearest to the last residue of a chain.
+
+    Returns:
+        A boolean indicating whether the residue is near the end of a chain.
+    """
     atEnd = False
     for i in range(n):
         if (residueId+i) in chain_ends:
             atEnd = True
     return atEnd
-def isChainEdge(residueId, chain_starts, chain_ends, n=2):
+
+
+def isChainEdge(residueId: int, 
+                chain_starts: List[int], 
+                chain_ends: List[int], 
+                n: int = 2
+                ) -> bool:
+    """Determine if a residue is at the edge of a chain within a given range.
+
+    Args:
+        residueId: An integer representing the ID of the residue.
+        chain_starts: A list of integers representing the starting residue IDs of each chain.
+        chain_ends: A list of integers representing the ending residue IDs of each chain.
+        n: An integer representing the range within which to consider a residue at the edge of a chain.
+
+    Returns:
+        A boolean indicating whether the residue is at the edge of a chain.
+    """
     # n is how far away from the two ends count as in chain edge.
     return (isChainStart(residueId, chain_starts, n) or isChainEnd(residueId, chain_ends, n))
     # atBegin = False
@@ -49,7 +94,19 @@ def isChainEdge(residueId, chain_starts, chain_ends, n=2):
     #         atEnd = True
     # return (atBegin or atEnd)
 
-def inWhichChain(residueId, chain_ends):
+
+def inWhichChain(residueId: int, 
+                 chain_ends: List[int]
+                 ) -> str:
+    """Determine in which chain a given residue ID is located.
+
+    Args:
+        residueId: An integer representing the ID of the residue.
+        chain_ends: A list of integers representing the ending residue IDs of each chain.
+
+    Returns:
+        A single character string representing the chain in which the residue ID is found.
+    """
     chain_table = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
     for i, end_of_chain_resId in enumerate(chain_ends):
         if end_of_chain_resId < residueId:
@@ -57,7 +114,17 @@ def inWhichChain(residueId, chain_ends):
         else:
             return chain_table[i]
 
-def read_beta_parameters(parametersLocation=None):
+
+def read_beta_parameters(parametersLocation: Optional[Path] = None
+                         ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Reads the beta parameters from the given directory.
+
+    Args:
+        parametersLocation: The directory where the beta parameters files are located. If None, the default parameters path is used.
+
+    Returns:
+        A tuple containing the parameters p_par, p_anti, p_antihb, p_antinhb, and p_parhb as numpy arrays.
+    """
     if parametersLocation is None:
         parametersLocation=openawsem.data_path.parameters
     parametersLocation=Path(parametersLocation)
@@ -90,80 +157,205 @@ def read_beta_parameters(parametersLocation=None):
     return p_par, p_anti, p_antihb, p_antinhb, p_parhb
 
 
-def get_lambda_by_index(i, j, lambda_i):
+def get_lambda_by_index(i: int, 
+                        j: int, 
+                        lambda_i: int
+                        ) -> float:
+    """Calculate the lambda value based on the indices of two residues and a lambda index.
 
+    Args:
+        i: The index of the first residue.
+        j: The index of the second residue.
+        lambda_i: The index to select the lambda value from the lambda table.
 
+    Returns:
+        The lambda value corresponding to the distance between residues and the lambda index.
+    """
     lambda_table = [[1.37, 1.36, 1.17],
                     [3.89, 3.50, 3.52],
                     [0.00, 3.47, 3.62]]
-    if abs(j-i) >= 4 and abs(j-i) < 18:
+    if 4 <= abs(j-i) < 18:
         return lambda_table[lambda_i][0]
-    elif abs(j-i) >= 18 and abs(j-i) < 45:
+    elif 18 <= abs(j-i) < 45:
         return lambda_table[lambda_i][1]
     elif abs(j-i) >= 45:
         return lambda_table[lambda_i][2]
     else:
-        return 0
+        return 0.0
 
-def get_alpha_by_index(i, j, alpha_i):
+
+def get_alpha_by_index(i: int, 
+                       j: int, 
+                       alpha_i: int
+                       ) -> float:
+    """Calculate the alpha value based on the indices of two residues and an alpha index.
+
+    Args:
+        i: The index of the first residue.
+        j: The index of the second residue.
+        alpha_i: The index to select the alpha value from the alpha table.
+
+    Returns:
+        The alpha value corresponding to the distance between residues and the alpha index.
+    """
     alpha_table = [[1.30, 1.30, 1.30],
-                    [1.32, 1.32, 1.32],
-                    [1.22, 1.22, 1.22],
-                    [0.00, 0.33, 0.33],
-                    [0.00, 1.01, 1.01]]
-    if abs(j-i) >= 4 and abs(j-i) < 18:
+                   [1.32, 1.32, 1.32],
+                   [1.22, 1.22, 1.22],
+                   [0.00, 0.33, 0.33],
+                   [0.00, 1.01, 1.01]]
+    if 4 <= abs(j-i) < 18:
         return alpha_table[alpha_i][0]
-    elif abs(j-i) >= 18 and abs(j-i) < 45:
+    elif 18 <= abs(j-i) < 45:
         return alpha_table[alpha_i][1]
     elif abs(j-i) >= 45:
         return alpha_table[alpha_i][2]
     else:
-        return 0
+        return 0.0
 
-def get_pap_gamma_APH(donor_idx, acceptor_idx, chain_i, chain_j, gamma_APH):
-    # if chain_i == chain_j and abs(j-i) < 13 or abs(j-i) > 16:
-    # if abs(j-i) < 13 or abs(j-i) > 16:
-    # if i-j < 13 or i-j > 16:
-    # if (donor_idx - acceptor_idx >= 13 and donor_idx - acceptor_idx <= 16) or chain_i != chain_j:
+
+def get_pap_gamma_APH(donor_idx: int, 
+                      acceptor_idx: int, 
+                      chain_i: str, 
+                      chain_j: str, 
+                      gamma_APH: float
+                      ) -> float:
+    """Calculate the gamma_APH value for anti-parallel beta-sheet hydrogen bonding.
+
+    Args:
+        donor_idx: The index of the donor residue.
+        acceptor_idx: The index of the acceptor residue.
+        chain_i: The chain identifier for the donor residue.
+        chain_j: The chain identifier for the acceptor residue.
+        gamma_APH: The initial gamma value for anti-parallel beta-sheet hydrogen bonding.
+
+    Returns:
+        The gamma_APH value if the donor and acceptor are within the specified range and on the same chain, otherwise 0.
+    """
     if (donor_idx - acceptor_idx >= 13 and donor_idx - acceptor_idx <= 16) and chain_i == chain_j:
         return gamma_APH
     else:
-        return 0
+        return 0.0
 
-def get_pap_gamma_AP(donor_idx, acceptor_idx, chain_i, chain_j, gamma_AP, ssweight):
+
+def get_pap_gamma_AP(donor_idx: int, 
+                     acceptor_idx: int, 
+                     chain_i: str, 
+                     chain_j: str, 
+                     gamma_AP: float, 
+                     ssweight: List[List[int]]
+                     ) -> float:
+    """Calculate the gamma_AP value for parallel beta-sheet pairing.
+
+    Args:
+        donor_idx: The index of the donor residue.
+        acceptor_idx: The index of the acceptor residue.
+        chain_i: The chain identifier for the donor residue.
+        chain_j: The chain identifier for the acceptor residue.
+        gamma_AP: The initial gamma value for parallel beta-sheet pairing.
+        ssweight: A list containing secondary structure weights.
+
+    Returns:
+        The scaled gamma_AP value if the donor and acceptor are in a parallel beta-sheet configuration, otherwise 0.
+    """
     if ssweight[donor_idx][1] == 1 and ssweight[acceptor_idx][1] == 1:
         additional_scale = 1.5
     else:
         additional_scale = 1.0
-    # if (donor_idx - acceptor_idx >= 17):
-    if (donor_idx - acceptor_idx >= 17) or chain_i != chain_j:
+    if donor_idx - acceptor_idx >= 17 or chain_i != chain_j:
         return additional_scale * gamma_AP
     else:
         return 0
 
-def get_pap_gamma_P(donor_idx, acceptor_idx, chain_i, chain_j, gamma_P, ssweight):
+
+def get_pap_gamma_P(donor_idx: int, 
+                    acceptor_idx: int, 
+                    chain_i: str, 
+                    chain_j: str, 
+                    gamma_P: float, 
+                    ssweight: List[List[int]]
+                    ) -> float:
+    """Calculate the gamma_P value for antiparallel beta-sheet pairing.
+
+    Args:
+        donor_idx: The index of the donor residue.
+        acceptor_idx: The index of the acceptor residue.
+        chain_i: The chain identifier for the donor residue.
+        chain_j: The chain identifier for the acceptor residue.
+        gamma_P: The initial gamma value for antiparallel beta-sheet pairing.
+        ssweight: A list containing secondary structure weights.
+
+    Returns:
+        The scaled gamma_P value if the donor and acceptor are in an antiparallel beta-sheet configuration, otherwise 0.
+    """
     if ssweight[donor_idx][1] == 1 and ssweight[acceptor_idx][1] == 1:
         additional_scale = 1.5
     else:
         additional_scale = 1.0
-    if (donor_idx - acceptor_idx >= 9) or chain_i != chain_j:
+    if donor_idx - acceptor_idx >= 9 or chain_i != chain_j:
         return additional_scale * gamma_P
     else:
-        return 0
+        return 0.0
 
-def get_Lambda_2(i, j, p_par, p_anti, p_antihb, p_antinhb, p_parhb, a):
+
+def get_Lambda_2(i: int, 
+                 j: int, 
+                 p_par: List[List[List[float]]], 
+                 p_anti: List[float], 
+                 p_antihb: List[List[List[float]]], 
+                 p_antinhb: List[List[List[float]]], 
+                 p_parhb: List[List[List[float]]], 
+                 a: List[int]
+                 ) -> float:
+    """Calculate the Lambda_2 value for a given pair of residues.
+
+    Args:
+        i: The index of the first residue.
+        j: The index of the second residue.
+        p_par: A list containing parallel beta-sheet information.
+        p_anti: A list containing antiparallel beta-sheet information.
+        p_antihb: A list containing antiparallel hydrogen bond information.
+        p_antinhb: A list containing antiparallel non-hydrogen bond information.
+        p_parhb: A list containing parallel hydrogen bond information.
+        a: A list of residue indices.
+
+    Returns:
+        The calculated Lambda_2 value.
+    """
     Lambda = get_lambda_by_index(i, j, 1)
     Lambda += -0.5*get_alpha_by_index(i, j, 0)*p_antihb[a[i], a[j]][0]
     Lambda += -0.25*get_alpha_by_index(i, j, 1)*(p_antinhb[a[i+1], a[j-1]][0] + p_antinhb[a[i-1], a[j+1]][0])
     Lambda += -get_alpha_by_index(i, j, 2)*(p_anti[a[i]] + p_anti[a[j]])
     return Lambda
 
-def get_Lambda_3(i, j, p_par, p_anti, p_antihb, p_antinhb, p_parhb, a):
+
+def get_Lambda_3(i: int, 
+                 j: int, 
+                 p_par: List[List[List[float]]], 
+                 p_anti: List[float], 
+                 p_antihb: List[List[List[float]]], 
+                 p_antinhb: List[List[List[float]]], 
+                 p_parhb: List[List[List[float]]], 
+                 a: List[int]
+                 ) -> float:
+    """Calculate the Lambda_3 value for a given pair of residues.
+
+    Args:
+        i: The index of the first residue.
+        j: The index of the second residue.
+        p_par: A list containing parallel beta-sheet information.
+        p_anti: A list containing antiparallel beta-sheet information.
+        p_antihb: A list containing antiparallel hydrogen bond information.
+        p_antinhb: A list containing antiparallel non-hydrogen bond information.
+        p_parhb: A list containing parallel hydrogen bond information.
+        a: A list of residue indices.
+
+    Returns:
+        The calculated Lambda_3 value.
+    """
     Lambda = get_lambda_by_index(i, j, 2)
     Lambda += -get_alpha_by_index(i, j, 3)*p_parhb[a[i+1], a[j]][0]
     Lambda += -get_alpha_by_index(i, j, 4)*p_par[a[i+1]]
-    # Lambda += -get_alpha_by_index(i, j, 3)*p_par[a[j]]
-    Lambda += -get_alpha_by_index(i, j, 4)*p_par[a[j]] # Fix typo for https://github.com/npschafer/openawsem/issues/19
+    Lambda += -get_alpha_by_index(i, j, 3)*p_par[a[j]]
     return Lambda
 
 
@@ -200,7 +392,20 @@ def get_Lambda_3(i, j, p_par, p_anti, p_antihb, p_antinhb, p_parhb, a):
 #     # beta_3.setForceGroup(25)
 #     return beta_1
 
-def convert_units(k):
+
+def convert_units(k: Union[float, int, Quantity]
+                  ) -> float:
+    """Convert the input energy units to kilojoules per mole if it is a Quantity.
+
+    Args:
+        k (Union[float, int, Quantity]): The input energy value. It can be a float, an integer, or a Quantity object.
+
+    Returns:
+        float: The energy value in kilojoules per mole if the input was a Quantity, otherwise the original value.
+
+    Raises:
+        ValueError: If the input is not a float, int, or Quantity.
+    """
     if isinstance(k, float) or isinstance(k, int):
         k = k   # just for backward comptable
     elif isinstance(k, Quantity):
@@ -209,7 +414,21 @@ def convert_units(k):
         print(f"Unknown input, {k}, {type(k)}")
     return k
 
-def beta_term_1(oa, k=0.5*kilocalories_per_mole, forceGroup=27):
+
+def beta_term_1(oa: OpenMMAWSEMSystem, 
+                k: Quantity = 0.5 * kilocalories_per_mole, 
+                forceGroup: int = 27
+                ) -> CustomHbondForce:
+    """Calculate the beta term 1 for hydrogen bonding interactions.
+
+    Args:
+        oa (OpenMMAWSEMSystem): The OpenMM AWSEM system object containing the simulation parameters.
+        k (Quantity): The force constant for the hydrogen bonding term. Default is 0.5 kilocalories_per_mole.
+        forceGroup (int): The force group to which this interaction term should be added. Default is 27.
+
+    Returns:
+        CustomHbondForce: The custom hydrogen bond force object configured with the beta term 1.
+    """
     print("beta_1 term ON")
     k_beta = convert_units(k) * oa.k_awsem
     nres, n, h, ca, o, res_type = oa.nres, oa.n, oa.h, oa.ca, oa.o, oa.res_type
@@ -223,24 +442,19 @@ def beta_term_1(oa, k=0.5*kilocalories_per_mole, forceGroup=27):
     for i in range(nres):
         for j in range(nres):
             lambda_1[i][j] = get_lambda_by_index(i, j, 0)
+    
+    # theta_ij calculation
     theta_ij = f"exp(-(r_Oi_Nj-{r_ON})^2/(2*{sigma_NO}^2)-(r_Oi_Hj-{r_OH})^2/(2*{sigma_HO}^2))"
-    mu_1 = 10  # nm^-1
-    # mu_2 = 5   # nm^-1
-    rcHB = 1.2  # in nm
+
     # v1i ensures the hydrogen bonding does not occur when five residue segment is shorter than 12 A
+    mu_1 = 10  # nm^-1
+    mu_2 = 5   # nm^-1
+    rcHB = 1.2  # in nm  
     # v1i = f"0.5*(1+tanh({mu_1}*(distance(a2,a3)-{rcHB})))"
     v1i = "1"
+
     beta_string_1 = f"-{k_beta}*lambda_1(res_i,res_j)*theta_ij*v1i;theta_ij={theta_ij};v1i={v1i};r_Oi_Nj=distance(a1,d1);r_Oi_Hj=distance(a1,d2);"
     beta_1 = CustomHbondForce(beta_string_1)
-
-    # Set PBC. 02082024 Rebekah Added. --- Start
-    if oa.periodic:
-        beta_1.setNonbondedMethod(beta_1.CutoffPeriodic)
-        print('\nbeta_term_1 is in PBC')
-    else:
-        beta_1.setNonbondedMethod(beta_1.CutoffNonPeriodic)
-    # Set PBC. 02082024 Rebekah Added. --- End
-
     beta_1.addPerDonorParameter("res_i")
     beta_1.addPerAcceptorParameter("res_j")
     beta_1.addTabulatedFunction("lambda_1", Discrete2DFunction(nres, nres, lambda_1.T.flatten()))
@@ -254,14 +468,29 @@ def beta_term_1(oa, k=0.5*kilocalories_per_mole, forceGroup=27):
             beta_1.addAcceptor(oa.o[i], -1, -1, [i])
         if oa.n[i]!=-1 and oa.h[i]!=-1:
             beta_1.addDonor(oa.n[i], oa.h[i], -1, [i])
-    # beta_1.setNonbondedMethod(CustomHbondForce.CutoffNonPeriodic)
+
+    beta_1.setNonbondedMethod(CustomHbondForce.CutoffNonPeriodic)
     beta_1.setCutoffDistance(1.0)
     beta_1.setForceGroup(forceGroup)
     # beta_2.setForceGroup(24)
     # beta_3.setForceGroup(25)
     return beta_1
 
-def beta_term_2(oa, k=0.5*kilocalories_per_mole, forceGroup=27):
+
+def beta_term_2(oa: OpenMMAWSEMSystem, 
+                k: Quantity=0.5*kilocalories_per_mole, 
+                forceGroup: int=27
+                ) -> CustomHbondForce:
+    """Calculate the beta term 2 for hydrogen bonding interactions.
+
+    Args:
+        oa (OpenMMAWSEMSystem): The OpenMM AWSEM system object containing the simulation data.
+        k (Quantity): The force constant for the hydrogen bond interactions. Default is 0.5 kilocalories_per_mole.
+        forceGroup (int): The force group number for this particular energy term. Default is 27.
+
+    Returns:
+        CustomHbondForce: The custom hydrogen bond force object for beta term 2.
+    """
     print("beta_2 term ON")
     k_beta = convert_units(k) * oa.k_awsem
     nres, n, h, ca, o, res_type = oa.nres, oa.n, oa.h, oa.ca, oa.o, oa.res_type
@@ -294,15 +523,6 @@ def beta_term_2(oa, k=0.5*kilocalories_per_mole, forceGroup=27):
                         theta_ij={theta_ij};r_Oi_Nj=distance(a1,d1);r_Oi_Hj=distance(a1,d2);\
                         theta_ji={theta_ji};r_Oj_Ni=distance(d3,a2);r_Oj_Hi=distance(d3,a3);"
     beta_2 = CustomHbondForce(beta_string_2)
-
-    # Set PBC. 02082024 Rebekah Added. --- Start
-    if oa.periodic:
-        beta_2.setNonbondedMethod(beta_2.CutoffPeriodic)
-        print('\nbeta_term_2 is in PBC')
-    else:
-        beta_2.setNonbondedMethod(beta_2.CutoffNonPeriodic)
-    # Set PBC. 02082024 Rebekah Added. --- End
-
     beta_2.addPerDonorParameter("res_i")
     beta_2.addPerAcceptorParameter("res_j")
     beta_2.addTabulatedFunction("lambda_2", Discrete2DFunction(nres, nres, lambda_2.T.flatten()))
@@ -312,7 +532,7 @@ def beta_term_2(oa, k=0.5*kilocalories_per_mole, forceGroup=27):
         if o[i]!= -1 and n[i]!=-1 and h[i]!=-1:
             beta_2.addAcceptor(o[i], n[i], h[i], [i])
             beta_2.addDonor(n[i], h[i], o[i], [i])
-    # beta_2.setNonbondedMethod(CustomHbondForce.CutoffNonPeriodic)
+    beta_2.setNonbondedMethod(CustomHbondForce.CutoffNonPeriodic)
     beta_2.setCutoffDistance(1.0)
     # beta_1.setForceGroup(23)
     beta_2.setForceGroup(forceGroup)
@@ -321,7 +541,20 @@ def beta_term_2(oa, k=0.5*kilocalories_per_mole, forceGroup=27):
     return beta_2
 
 
-def beta_term_3(oa, k=0.5*kilocalories_per_mole, forceGroup=27):
+def beta_term_3(oa: OpenMMAWSEMSystem, 
+                k: float = 0.5 * kilocalorie_per_mole, 
+                forceGroup: int = 27
+                ) -> CustomHbondForce:
+    """Calculate the beta term 3 for hydrogen bonding in the AWSEM model.
+
+    Args:
+        oa: An OpenMMAWSEMSystem object containing the system information.
+        k: The force constant for the hydrogen bond term (default is 0.5 kilocalories_per_mole).
+        forceGroup: The force group to which this interaction should be added (default is 27).
+
+    Returns:
+        A CustomHbondForce object representing the beta term 3 hydrogen bonding interactions.
+    """
     print("beta_3 term ON")
     k_beta = convert_units(k) * oa.k_awsem
     nres, n, h, ca, o, res_type = oa.nres, oa.n, oa.h, oa.ca, oa.o, oa.res_type
@@ -357,14 +590,6 @@ def beta_term_3(oa, k=0.5*kilocalories_per_mole, forceGroup=27):
                         theta_jip2={theta_jip2};r_Oj_Nip2=distance(d3,a2);r_Oj_Hip2=distance(d3,a3);"
     beta_3 = CustomHbondForce(beta_string_3)
 
-    # Set PBC. 02082024 Rebekah Added. --- Start
-    if oa.periodic:
-        beta_3.setNonbondedMethod(beta_3.CutoffPeriodic)
-        print('\nbeta_term_3 is in PBC')
-    else:
-        beta_3.setNonbondedMethod(beta_3.CutoffNonPeriodic)
-    # Set PBC. 02082024 Rebekah Added. --- End
-        
     beta_3.addPerDonorParameter("res_i")
     beta_3.addPerAcceptorParameter("res_j")
     beta_3.addTabulatedFunction("lambda_3", Discrete2DFunction(nres, nres, lambda_3.T.flatten()))
@@ -377,7 +602,7 @@ def beta_term_3(oa, k=0.5*kilocalories_per_mole, forceGroup=27):
             beta_3.addAcceptor(o[i], n[i+2], h[i+2], [i])
         if o[i] != -1 and n[i] !=-1 and h[i] !=-1:
             beta_3.addDonor(n[i], h[i], o[i], [i])
-    # beta_3.setNonbondedMethod(CustomHbondForce.CutoffNonPeriodic)
+    beta_3.setNonbondedMethod(CustomHbondForce.CutoffNonPeriodic)
     beta_3.setCutoffDistance(1.0)
     # beta_1.setForceGroup(23)
     # beta_2.setForceGroup(24)
@@ -386,7 +611,24 @@ def beta_term_3(oa, k=0.5*kilocalories_per_mole, forceGroup=27):
     return beta_3
 
 
-def pap_term_1(oa, k=0.5*kilocalories_per_mole, dis_i_to_i4=1.2, forceGroup=28, ssweightFileName="ssweight"):
+def pap_term_1(oa: OpenMMAWSEMSystem, 
+               k: float = 0.5 * kilocalorie_per_mole, 
+               dis_i_to_i4: float = 1.2, 
+               forceGroup: int = 28, 
+               ssweightFileName: str = "ssweight"
+               ) -> CustomHbondForce:
+    """Calculate the PAP energy term for the given OpenMM AWSEM system.
+
+    Args:
+        oa: An OpenMMAWSEMSystem object representing the system.
+        k: The force constant for the PAP term. Default is 0.5 * kilocalorie_per_mole.
+        dis_i_to_i4: The distance between CA_i and CA_i+4 where the hydrogen bond is disfavored. Default is 1.2 nm.
+        forceGroup: The force group to which this energy term belongs. Default is 28.
+        ssweightFileName: The filename for the secondary structure weight. Default is "ssweight".
+
+    Returns:
+        A CustomHbondForce object representing the PAP term.
+    """
     print("pap_1 term ON")
     k_pap = convert_units(k) * oa.k_awsem
     # dis_i_to_i4 should be in nm, it disfavor hydrogen bond when ca_i and ca_i+4 are 1.2 nm apart away.
@@ -428,14 +670,6 @@ def pap_term_1(oa, k=0.5*kilocalories_per_mole, dis_i_to_i4=1.2, forceGroup=28, 
 
     # pap_function = f"-{k_pap}*distance(a1,d1)"
     pap = CustomHbondForce(pap_function)
-    
-    # Set PBC. 02082024 Rebekah Added. --- Start
-    if oa.periodic:
-        pap.setNonbondedMethod(pap.CutoffPeriodic)
-        print('\npap_1 is in PBC')
-    else:
-        pap.setNonbondedMethod(pap.CutoffNonPeriodic)
-    # Set PBC. 02082024 Rebekah Added. --- End
     pap.addPerDonorParameter("donor_idx")
     pap.addPerAcceptorParameter("acceptor_idx")
     pap.addTabulatedFunction("gamma_1", Discrete2DFunction(nres, nres, gamma_1.T.flatten()))
@@ -452,13 +686,31 @@ def pap_term_1(oa, k=0.5*kilocalories_per_mole, dis_i_to_i4=1.2, forceGroup=28, 
             if oa.n[i] != -1 and oa.n[i-4] != -1:
                 pap.addDonor(oa.n[i], oa.n[i-4], -1, [i])
 
-    # pap.setNonbondedMethod(CustomHbondForce.CutoffNonPeriodic)
+    pap.setNonbondedMethod(CustomHbondForce.CutoffNonPeriodic)
     pap.setCutoffDistance(1.0)
     # print(count)
     pap.setForceGroup(forceGroup)
     return pap
 
-def pap_term_2(oa, k=0.5*kilocalories_per_mole, dis_i_to_i4=1.2, forceGroup=28, ssweightFileName="ssweight"):
+
+def pap_term_2(oa: OpenMMAWSEMSystem, 
+               k: float = 0.5*kilocalories_per_mole, 
+               dis_i_to_i4: float = 1.2, 
+               forceGroup: int = 28, 
+               ssweightFileName: str = "ssweight"
+               ) -> CustomHbondForce:
+    """Calculate the PAP term 2 of the hydrogen bond interactions.
+
+    Args:
+        oa (OpenMMAWSEMSystem): The OpenMM AWSEM system object.
+        k (float, optional): The force constant for the PAP term. Defaults to 0.5*kilocalories_per_mole.
+        dis_i_to_i4 (float, optional): The distance between i and i+4 residues. Defaults to 1.2.
+        forceGroup (int, optional): The force group for the PAP term. Defaults to 28.
+        ssweightFileName (str, optional): The file name for the secondary structure weight. Defaults to "ssweight".
+
+    Returns:
+        CustomHbondForce: The custom hydrogen bond force object for the PAP term 2.
+    """
     print("pap_2 term ON")
     k_pap = convert_units(k) * oa.k_awsem
     nres, ca = oa.nres, oa.ca
@@ -490,15 +742,6 @@ def pap_term_2(oa, k=0.5*kilocalories_per_mole, dis_i_to_i4=1.2, forceGroup=28, 
                         *0.5*(1+tanh({eta_pap}*({r0}-distance(a2,d2))))\
                         *{constraint_i_and_i4}"
     pap = CustomHbondForce(pap_function)
-
-    # Set PBC. 02082024 Rebekah Added. --- Start
-    if oa.periodic:
-        pap.setNonbondedMethod(pap.CutoffPeriodic)
-        print('\npap_2 is in PBC')
-    else:
-        pap.setNonbondedMethod(pap.CutoffNonPeriodic)
-    # Set PBC. 02082024 Rebekah Added. --- End
-        
     pap.addPerDonorParameter("donor_idx")
     pap.addPerAcceptorParameter("acceptor_idx")
     pap.addTabulatedFunction("gamma_3", Discrete2DFunction(nres, nres, gamma_3.T.flatten()))
@@ -511,13 +754,30 @@ def pap_term_2(oa, k=0.5*kilocalories_per_mole, dis_i_to_i4=1.2, forceGroup=28, 
             if oa.n[i] != -1 and oa.n[i+4] != -1:
                 pap.addDonor(oa.n[i], oa.n[i+4], -1, [i])
 
-    # pap.setNonbondedMethod(CustomHbondForce.CutoffNonPeriodic)
+    pap.setNonbondedMethod(CustomHbondForce.CutoffNonPeriodic)
     pap.setCutoffDistance(1.0)
     # print(count)
     pap.setForceGroup(forceGroup)
     return pap
 
-def get_helical_f(oneLetterCode, inMembrane=False):
+
+def get_helical_f(oneLetterCode: str, 
+                  inMembrane: bool = False
+                  ) -> float:
+    """Calculate the helical propensity factor for a given amino acid.
+
+    This function returns a helical propensity factor for a given amino acid,
+    which is a measure of how likely the amino acid is to be found in a helical
+    region of a protein. The propensity factors are different depending on whether
+    the protein is in a membrane environment or not.
+
+    Args:
+        oneLetterCode: A single-letter code representing the amino acid.
+        inMembrane: A boolean indicating whether the protein is in a membrane environment.
+
+    Returns:
+        The helical propensity factor for the given amino acid.
+    """
     if inMembrane:
         table = {"A": 0.79, "R": 0.62, "N": 0.49, "D": 0.44, "C": 0.76, "Q": 0.61, "E": 0.57, "G": 0.57, "H": 0.63, "I": 0.81,
             "L": 0.81, "K": 0.56, "M": 0.80, "F": 0.76, "P": 0.44, "S": 0.6, "T": 0.67, "W": 0.74, "Y": 0.71, "V": 0.79}
@@ -526,7 +786,27 @@ def get_helical_f(oneLetterCode, inMembrane=False):
             "L": 0.62, "K": 0.65, "M": 0.5, "F": 0.41, "P": 0.4, "S": 0.35, "T": 0.11, "W": 0.45, "Y": 0.17, "V": 0.14}
     return table[oneLetterCode]
 
-def helical_term(oa, k_helical=4.184, inMembrane=False, forceGroup=29):
+
+def helical_term(oa: OpenMMAWSEMSystem, 
+                 k_helical: float = 4.184, 
+                 inMembrane: bool = False, 
+                 forceGroup: int = 29
+                 ) -> CustomCompoundBondForce:
+    """Calculate the helical term of the potential energy for an OpenMM AWSEM simulation.
+
+    This function computes the helical term, which is a component of the potential energy
+    in an OpenMM AWSEM simulation. It is used to model the energetics of helical regions
+    within a protein structure.
+
+    Args:
+        oa: An OpenMMAWSEMSystem object representing the system to which the force will be added.
+        k_helical: The force constant for the helical term. Default is 4.184.
+        inMembrane: A boolean indicating whether the simulation is for a membrane protein. Default is False.
+        forceGroup: The force group to which this interaction should be added. Default is 29.
+
+    Returns:
+        A CustomCompoundBondForce object representing the helical term.
+    """
     # without density dependency.
     # without z dependency for now.
     k_helical *= oa.k_awsem
@@ -551,7 +831,30 @@ def helical_term(oa, k_helical=4.184, inMembrane=False, forceGroup=29):
     helical.setForceGroup(forceGroup)
     return helical
 
-def z_dependent_helical_term(oa, k_helical=4.184, membrane_center=0*angstrom, z_m=1.5, forceGroup=29):
+
+def z_dependent_helical_term(oa: OpenMMAWSEMSystem, 
+                             k_helical: float = 4.184, 
+                             membrane_center: angstrom = 0*angstrom, z_m: float = 1.5, 
+                             forceGroup: int = 29
+                             ) -> CustomCompoundBondForce:
+    """
+    Create a z-dependent helical term for the OpenMM AWSEM simulation.
+
+    This function creates a CustomCompoundBondForce that models the helical interactions
+    of a protein within a membrane environment, with a z-dependent switching function
+    to modulate the strength of the interaction based on the residue's proximity to the
+    membrane center.
+
+    Args:
+        oa: An OpenMMAWSEMSystem object representing the system to which the force will be added.
+        k_helical: The force constant for the helical term. Default is 4.184.
+        membrane_center: The z-coordinate of the center of the membrane. Default is 0*angstrom.
+        z_m: The half-width of the membrane. Default is 1.5.
+        forceGroup: The force group to which this interaction should be added. Default is 29.
+
+    Returns:
+        A CustomCompoundBondForce object representing the z-dependent helical term.
+    """
     # without density dependency.
     k_helical *= oa.k_awsem
     sigma_NO = 0.068
@@ -694,7 +997,22 @@ def z_dependent_helical_term(oa, k_helical=4.184, membrane_center=0*angstrom, z_
 #     return pap
 
 
-def beta_term_1_old(oa, k_beta=4.184, debug=False, forceGroup=23):
+def beta_term_1_old(oa: OpenMMAWSEMSystem, 
+                    k_beta: float = 4.184, 
+                    debug: bool = False, 
+                    forceGroup: int = 23
+                    ) -> CustomCompoundBondForce:
+    """Generate the old beta term 1 for the OpenMM AWSEM simulation.
+
+    Args:
+        oa (OpenMMAWSEMSystem): The OpenMM AWSEM system object.
+        k_beta (float, optional): The force constant for the beta term. Defaults to 4.184.
+        debug (bool, optional): Flag to enable debug mode. Defaults to False.
+        forceGroup (int, optional): The force group number for this term. Defaults to 23.
+
+    Returns:
+        CustomCompoundBondForce: The OpenMM CustomCompoundBondForce object for the beta term 1.
+    """
 
     print("beta_1 term ON")
     nres, n, h, ca, o, res_type = oa.nres, oa.n, oa.h, oa.ca, oa.o, oa.res_type
@@ -753,7 +1071,19 @@ def beta_term_1_old(oa, k_beta=4.184, debug=False, forceGroup=23):
     beta_1.setForceGroup(forceGroup)
     return beta_1
 
-def beta_term_2_old(oa, k_beta=4.184, debug=False, forceGroup=24):
+
+def beta_term_2_old(oa: OpenMMAWSEMSystem, 
+                    k_beta: float = 4.184, 
+                    debug: bool = False, 
+                    forceGroup: int = 24):
+    """Calculate the old beta term 2 for the given OpenMM AWSEM system.
+
+    Args:
+        oa (OpenMMAWSEMSystem): The OpenMM AWSEM system object.
+        k_beta (float, optional): The force constant for the beta term. Defaults to 4.184.
+        debug (bool, optional): Flag to enable debug mode. Defaults to False.
+        forceGroup (int, optional): The force group to which this term belongs. Defaults to 24.
+    """
     print("beta_2 term ON");
     nres, n, h, ca, o, res_type = oa.nres, oa.n, oa.h, oa.ca, oa.o, oa.res_type
     # add beta potential
@@ -829,7 +1159,24 @@ def beta_term_2_old(oa, k_beta=4.184, debug=False, forceGroup=24):
     #beta_3.setForceGroup(25)
     return beta_2
 
-def beta_term_3_old(oa, k_beta=4.184, debug=False, forceGroup=25):
+
+def beta_term_3_old(oa: OpenMMAWSEMSystem, 
+                    k_beta: float = 4.184, 
+                    debug: bool = False, 
+                    forceGroup: int = 25
+                    ) -> CustomCompoundBondForce:
+    """
+    Define the old beta term 3 for the OpenAWSEM simulation.
+
+    Args:
+        oa: An instance of OpenMMAWSEMSystem which provides access to the simulation system.
+        k_beta: The force constant for the beta term. Default is 4.184 (kcal/mol).
+        debug: A boolean flag used for debugging. If True, additional information is printed or logged. Default is False.
+        forceGroup: The force group to which this force will be added. Default is 25.
+
+    Returns:
+        A CustomCompoundBondForce object representing the old beta term 3.
+    """
     print("beta_3 term ON")
     nres, n, h, ca, o, res_type = oa.nres, oa.n, oa.h, oa.ca, oa.o, oa.res_type
     # add beta potential
@@ -902,7 +1249,22 @@ def beta_term_3_old(oa, k_beta=4.184, debug=False, forceGroup=25):
     beta_3.setForceGroup(forceGroup)
     return beta_3
 
-def pap_term_old(oa, k_pap=4.184, forceGroup=26):
+
+def pap_term_old(oa: OpenMMAWSEMSystem, 
+                 k_pap: float = 4.184, 
+                 forceGroup: int = 26
+                 ) -> 'CustomCompoundBondForce':
+    """
+    Create a CustomCompoundBondForce for the PAP term in the old implementation.
+
+    Args:
+        oa: An OpenMMAWSEMSystem which provides access to the simulation system.
+        k_pap: The force constant for the PAP term. Default is 4.184.
+        forceGroup: The force group to which this force will be added. Default is 26.
+
+    Returns:
+        A CustomCompoundBondForce object that implements the PAP term.
+    """
     print("pap term ON")
     nres, ca = oa.nres, oa.ca
     # r0 = 2.0 # nm

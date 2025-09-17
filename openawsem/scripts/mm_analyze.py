@@ -1,20 +1,35 @@
 #!/usr/bin/env python3
+try:
+    from openmm import LangevinIntegrator
+    from openmm.app import Simulation
+    from openmm.unit import kilojoule_per_mole, picosecond, picoseconds, femtoseconds, kilojoule_per_mole, kelvin, kilocalories_per_mole
+except ModuleNotFoundError:
+    from simtk.openmm import LangevinIntegrator
+    from openmm.app import Simulation
+    from simtk.unit import kilojoule_per_mole, picosecond, picoseconds, femtoseconds, kilojoule_per_mole, kelvin, kilocalories_per_mole
+
 import os
 import argparse
 import sys
-from time import sleep
-import subprocess
-import fileinput
-import platform
 import importlib.util
+import mdtraj as md
 
-# __location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
-# __author__ = 'Wei Lu'
+__location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
+__author__ = 'Wei Lu'
 
-from openawsem import *
+# Edited by Malin Lüking for folding simulations monitoring specifically helicity and contacts (h-bonding and charge interactions)
+# Edited in April 2024
+
+from openawsem import OpenMMAWSEMSystem, Platform, openawsem
 from openawsem.helperFunctions.myFunctions import *
 
+
 def analyze(args):
+    """Analyze the simulation results.
+
+    Args:
+        args: An argparse.Namespace object containing the command line arguments.
+    """
     if (args.debug):
         do = print
         cd = print
@@ -101,11 +116,12 @@ def analyze(args):
     simulation = Simulation(oa.pdb.topology, oa.system, integrator, platform)
 
     # apply forces
-    forceGroupTable = {"Backbone":20, "Rama":21, "Contact":22, "Fragment":23, "Membrane":24, "ER":25, "TBM_Q":26, "Beta":27, "Pap":28, "Helical":29,
+    forceGroupTable = {"Backbone":20, "Rama":21, "Contact":22, "Fragment":23, "Membrane":24, "ER":25, "TBM_Q":26, "Beta":27, "Pap":28,
+                        "Helical":29, "Debye_huckel":30,
                         "Q":1, "Rg":2, "Qc":3,
-                        "Helix_orientation":18, "Pulling":19, "Debye_huckel":30,
+                        "Helix_orientation":18, "Pulling":19,
                         "Total":list(range(11, 32))
-                        # , "Q_wat":4, "Q_mem":5,
+                        # , "Q_wat":4, "Q_mem":5, "Debye_huckel":30
                     }
     print("Please ensure the forceGroupTable in mm_analysis is set up correctly if you are adding new energy terms.")
     print("Also, please notice that the total energy include all the terms with group index range from 11 to 32.")
@@ -123,7 +139,9 @@ def analyze(args):
     showValue = ["Q", "Rg"]
     # term in showEnergy will assume to take on the energy unit of kilojoule_per_mole, it will be shown in unit of kilocalories_per_mole(divided by 4.184) 
     # term in showValue will not be converted.
-    showEnergy = ["Backbone", "Rama", "Contact", "Fragment", "Membrane", "ER", "TBM_Q", "Beta", "Pap", "Helical", "Debye_huckel","Total"]
+    # terms included are related to the backbone (con and chain terms (harmonic potentials) and chi term (dihedral potential)),
+    # the ramachandran potential for dihedral angles (psi and phi), the contact term, the fragment memory term,
+    showEnergy = ["Backbone", "Rama", "Contact", "Fragment", "Membrane", "ER", "TBM_Q", "Beta", "Pap", "Helical", "Debye_huckel", "Total"]
     showAll = showValue + showEnergy
     # , "Disulfide"
     # showEnergy = ["Q", "Qc", "Rg", "Con", "Chain", "Chi", "Excluded", "Rama", "Contact", "Helical", "Fragment", "Membrane", "ER", "Beta", "Pap", "Total"]
@@ -163,6 +181,7 @@ def analyze(args):
             print(line)
             out.write(line+"\n")
         #         print(forceGroupTable[term], state.getPotentialEnergy().value_in_unit(kilocalories_per_mole))
+
 
 def main():
     parser = argparse.ArgumentParser(
