@@ -129,7 +129,7 @@ def run_replica_exchange(args):
             timestep=args.timeStep*femtoseconds,
             collision_rate=1/picosecond,
         ),
-        number_of_replicas=num_replicas,
+        n_replicas=num_replicas,
         reporter=reporter,
     )
     sampler.temperature_trajectories = temps
