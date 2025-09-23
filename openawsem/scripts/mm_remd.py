@@ -128,6 +128,7 @@ def run_replica_exchange(args):
         mcmc_moves=LangevinDynamicsMove(
             timestep=args.timeStep*femtoseconds,
             collision_rate=1/picosecond,
+            n_steps = args.steps
         )
     )
     # sampler.temperature_trajectories = temps
@@ -138,11 +139,12 @@ def run_replica_exchange(args):
     # sampler.n_steps = int(args.steps)
     sampler.create(thermodynamic_states=thermodynamic_states,
                    sampler_states=sampler_states,
-                   storage=reporter)
+                   storage=reporter,
+                   number_of_iterations=10)
     # Get start time
     start_time = time.time()
     # Start simulation
-    sampler.run(n_steps=int(args.steps))
+    sampler.run()
 
     # Log time taken
     end_time = time.time()
