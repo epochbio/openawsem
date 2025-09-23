@@ -128,10 +128,15 @@ def run_replica_exchange(args):
         mcmc_moves=LangevinDynamicsMove(
             timestep=args.timeStep*femtoseconds,
             collision_rate=1/picosecond,
-            n_steps = args.steps
-        ),
-        number_of_iterations=10
-    )
+        # The number of steps per iteration. This tells the sampler how many
+        # MD steps to run between each exchange attempt. We use the reportFrequency
+        # as a sensible default.
+            n_steps=args.reportFrequency
+            ),
+            number_of_iterations=int(args.steps / args.reportFrequency),
+            # The platform needs to be set here as well to ensure it's used for the simulation run
+            platform=platform
+        )
     # sampler.temperature_trajectories = temps
     # sampler.states = thermodynamic_states
     # sampler.sampler_states = sampler_states
