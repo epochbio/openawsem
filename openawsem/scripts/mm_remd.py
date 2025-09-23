@@ -152,6 +152,7 @@ def main():
     parser.add_argument("--tempEnd", type=float, default=562, help="Ending temperature")
     parser.add_argument("--replicas", type=int, default=12, help="Number of replicas")
     parser.add_argument("--fromCheckPoint", type=str, default=None, help="The checkpoint file you want to start from")
+    parser.add_argument("--subMode", type=int, default=-1)
     parser.add_argument("-f", "--forces", default="forces_setup.py")
     parser.add_argument("--parameters", default=None)
     parser.add_argument("-r", "--reportFrequency", type=int, default=1000, help="Frequency to save data to output.nc")
