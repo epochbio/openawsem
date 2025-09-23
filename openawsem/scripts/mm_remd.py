@@ -139,6 +139,9 @@ def run_replica_exchange(args):
     sampler.create(thermodynamic_states=thermodynamic_states,
                    sampler_states=sampler_states,
                    storage=reporter)
+    # Get start time
+    start_time = time.time()
+    # Start simulation
     sampler.run()
 
     # Log time taken
