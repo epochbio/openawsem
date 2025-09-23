@@ -142,7 +142,7 @@ def run_replica_exchange(args):
     # Get start time
     start_time = time.time()
     # Start simulation
-    sampler.run()
+    sampler.run(n_steps=int(args.steps))
 
     # Log time taken
     end_time = time.time()
