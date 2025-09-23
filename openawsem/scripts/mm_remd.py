@@ -58,6 +58,18 @@ def run_replica_exchange(args):
         os.system(f"cp crystal_structure.fasta {toPath}/")
         os.system(f"cp crystal_structure.pdb {toPath}/")
 
+    if args.fromOpenMMPDB:
+        input_pdb_filename = proteinName
+        seq=read_fasta("crystal_structure.fasta")
+        print(f"Using Seq:\n{seq}")
+    else:
+        suffix = '-openmmawsem.pdb'
+        if pdb_id[-len(suffix):] == suffix:
+            input_pdb_filename = pdb_id
+        else:
+            input_pdb_filename = f"{pdb_id}-openmmawsem.pdb"
+        seq=None
+
     if args.fasta == "":
         seq = None
     else:
@@ -71,7 +83,7 @@ def run_replica_exchange(args):
     temps = np.linspace(args.tempStart, args.tempEnd, num_replicas) * kelvin
 
     # Initialize AWSEM system
-    oa = OpenMMAWSEMSystem(f"{pdb_id}.pdb", k_awsem=1.0, chains=chain, xml_filename=openawsem.xml, seqFromPdb=seq, includeLigands=args.includeLigands)
+    oa = OpenMMAWSEMSystem(input_pdb_filename, k_awsem=1.0, chains=chain, xml_filename=openawsem.xml, seqFromPdb=seq, includeLigands=args.includeLigands)
     spec = importlib.util.spec_from_file_location("forces", forceSetupFile)
     forces_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(forces_module)
@@ -143,6 +155,7 @@ def main():
     parser.add_argument("-f", "--forces", default="forces_setup.py")
     parser.add_argument("--parameters", default=None)
     parser.add_argument("-r", "--reportFrequency", type=int, default=1000, help="Frequency to save data to output.nc")
+    parser.add_argument("--fromOpenMMPDB", action="store_true", default=False)
     parser.add_argument("--fasta", type=str, default="crystal_structure.fasta")
     parser.add_argument("--timeStep", type=int, default=2)
     parser.add_argument("--includeLigands", action="store_true", default=False)
