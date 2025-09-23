@@ -129,7 +129,8 @@ def run_replica_exchange(args):
             timestep=args.timeStep*femtoseconds,
             collision_rate=1/picosecond,
             n_steps = args.steps
-        )
+        ),
+        number_of_iterations=10
     )
     # sampler.temperature_trajectories = temps
     # sampler.states = thermodynamic_states
@@ -139,8 +140,7 @@ def run_replica_exchange(args):
     # sampler.n_steps = int(args.steps)
     sampler.create(thermodynamic_states=thermodynamic_states,
                    sampler_states=sampler_states,
-                   storage=reporter,
-                   number_of_iterations=10)
+                   storage=reporter)
     # Get start time
     start_time = time.time()
     # Start simulation
