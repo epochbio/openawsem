@@ -20,6 +20,7 @@ from openawsem.helperFunctions.myFunctions import *
 from openmmtools.multistate import ReplicaExchangeSampler
 from openmmtools.multistate import MultiStateReporter
 from openmmtools.states import ThermodynamicState, SamplerState
+from openmmtools.mcmc import LangevinDynamicsMove
 
 # Global variables for convenience
 do = os.system
@@ -115,9 +116,19 @@ def run_replica_exchange(args):
     # Set up the reporter to save data
     reporter = MultiStateReporter(os.path.join(toPath, "output.nc"), checkpoint_interval=args.reportFrequency)
 
-    # Create and run the replica exchange sampler
+    # # Create and run the replica exchange sampler
+    # sampler = ReplicaExchangeSampler(
+    #     mcmc_moves=LangevinIntegrator(1/picosecond, 1/picosecond, args.timeStep*femtoseconds),
+    #     number_of_replicas=num_replicas,
+    #     reporter=reporter,
+    # )
+
+     # Create and run the replica exchange sampler
     sampler = ReplicaExchangeSampler(
-        mcmc_moves=LangevinIntegrator(1/picosecond, 1/picosecond, args.timeStep*femtoseconds),
+        mcmc_moves=LangevinDynamicsMove(
+            timestep=args.timeStep*femtoseconds,
+            collision_rate=1/picosecond,
+        ),
         number_of_replicas=num_replicas,
         reporter=reporter,
     )
