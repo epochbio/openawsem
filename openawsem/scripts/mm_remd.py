@@ -2,7 +2,7 @@
 try:
     from openmm import LangevinIntegrator, Platform, CustomIntegrator
     from openmm.app import Simulation, PDBReporter, DCDReporter, StateDataReporter, CheckpointReporter
-    from openmm.unit import picosecond, picoseconds, femtoseconds, kelvin
+    from openmm.unit import picosecond, picoseconds, femtoseconds, kelvin, nanosecond
 except ModuleNotFoundError:
     from simtk.openmm import LangevinIntegrator, Platform, CustomIntegrator
     from simtk.openmm.app import Simulation, PDBReporter, DCDReporter, StateDataReporter, CheckpointReporter
@@ -85,8 +85,8 @@ def run_replica_exchange(args):
     temps = np.linspace(args.tempStart, args.tempEnd, num_replicas) * kelvin
 
     # Define number of steps and exchange attempts
-    total_simulation_time = args.runtime * unit.nanosecond
-    simulation_time_step = args.timeStep * unit.femtosecond
+    total_simulation_time = args.runtime * nanosecond
+    simulation_time_step = args.timeStep * femtosecond
 
     simulation_steps = int(np.floor(otal_simulation_time / simulation_time_step))
     exchange_attempts = int(np.floor(simulation_steps / args.exchange_frequency))
