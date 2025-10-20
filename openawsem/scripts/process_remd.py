@@ -25,7 +25,7 @@ pdb = PDBFile('input.pdb')
 replica_energies, replica_states, production_start, sample_spacing, n_transit, mixing_stats = process_replica_exchange_data(
     output_data=output_data,
     output_directory=output_directory,
-    frame_begin=20000,
+    frame_begin=0, #previously set to 20000
     write_data_file=False,
     print_timing=True,
 )

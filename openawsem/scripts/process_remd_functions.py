@@ -425,7 +425,7 @@ def process_replica_exchange_data(
     
     # Read the simulation coordinates for individual temperature replicas
     reporter = MultiStateReporter(output_data, open_mode="r")
-
+          
     t2 = time.perf_counter()
     if print_timing:
         print(f"open data time: {t2-t1}")
@@ -524,7 +524,7 @@ def process_replica_exchange_data(
             production_start=20000
             
         for state in range(n_replicas):
-            subsample_indices[state] = timeseries.subsampleCorrelatedData(
+            subsample_indices[state] = timeseries.subsample_correlated_data(
                 state_energies[state][production_start:],
                 conservative=True,
             )
@@ -533,7 +533,7 @@ def process_replica_exchange_data(
     else:
         # For small trajectories, use detectEquilibration
         for state in range(n_replicas):
-            t0[state], g[state], Neff_max = timeseries.detectEquilibration(state_energies[state], nskip=equil_nskip)  
+            t0[state], g[state], Neff_max = timeseries.detect_equilibration(state_energies[state], nskip=equil_nskip)  
 
             # Choose the latest equil timestep to apply to all states    
             production_start = int(np.max(t0))
