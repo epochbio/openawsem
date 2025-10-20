@@ -3,7 +3,8 @@
 import os
 import pickle
 
-from openmm import unit, PDBFile
+from openmm import unit
+from openmm.app.pdbfile import PDBFile
 from process_remd_functions import process_replica_exchange_data, \
     make_replica_dcd_files, make_state_dcd_files
 
