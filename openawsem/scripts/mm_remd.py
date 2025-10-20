@@ -14,6 +14,7 @@ import time
 from random import seed, randint
 import argparse
 import importlib.util
+import numpy as np
 
 from openawsem import *
 from openawsem.helperFunctions.myFunctions import *
@@ -83,6 +84,13 @@ def run_replica_exchange(args):
     num_replicas = args.replicas
     temps = np.linspace(args.tempStart, args.tempEnd, num_replicas) * kelvin
 
+    # Define number of steps and exchange attempts
+    total_simulation_time = args.runtime * unit.nanosecond
+    simulation_time_step = args.timeStep * unit.femtosecond
+
+    simulation_steps = int(np.floor(otal_simulation_time / simulation_time_step))
+    exchange_attempts = int(np.floor(simulation_steps / args.exchange_frequency))
+
     # Initialize AWSEM system
     oa = OpenMMAWSEMSystem(input_pdb_filename, k_awsem=1.0, chains=chain, xml_filename=openawsem.xml, seqFromPdb=seq, includeLigands=args.includeLigands)
     spec = importlib.util.spec_from_file_location("forces", forceSetupFile)
@@ -101,7 +109,7 @@ def run_replica_exchange(args):
     # Create the thermodynamic states for each replica
     thermodynamic_states = []
     for temp in temps:
-        integrator = LangevinIntegrator(temp, 1/picosecond, args.timeStep*femtoseconds)
+        integrator = LangevinIntegrator(temp, 1/picosecond, simulation_time_step)
         # Note: We create a new integrator for each temperature.
         # OpenMMTools will handle the rest.
         state = ThermodynamicState(system=oa.system, temperature=temp)
@@ -116,28 +124,16 @@ def run_replica_exchange(args):
     # Set up the reporter to save data
     reporter = MultiStateReporter(os.path.join(toPath, "output.nc"), checkpoint_interval=args.reportFrequency)
 
-    # # Create and run the replica exchange sampler
-    # sampler = ReplicaExchangeSampler(
-    #     mcmc_moves=LangevinIntegrator(1/picosecond, 1/picosecond, args.timeStep*femtoseconds),
-    #     number_of_replicas=num_replicas,
-    #     reporter=reporter,
-    # )
-
      # Create and run the replica exchange sampler
     sampler = ReplicaExchangeSampler(
         mcmc_moves=LangevinDynamicsMove(
-            timestep=args.timeStep*femtoseconds,
+            timestep=simulation_time_step,
             collision_rate=1/picosecond,
-            n_steps = args.steps
+            n_steps = args.exchange_frequency
         ),
-        number_of_iterations=10
+        number_of_iterations=exchange_attempts
     )
-    # sampler.temperature_trajectories = temps
-    # sampler.states = thermodynamic_states
-    # sampler.sampler_states = sampler_states
-    # sampler.platform = platform
-    # sampler.report_interval = args.reportFrequency
-    # sampler.n_steps = int(args.steps)
+
     sampler.create(thermodynamic_states=thermodynamic_states,
                    sampler_states=sampler_states,
                    storage=reporter)
@@ -164,18 +160,19 @@ def main():
     parser.add_argument("-c", "--chain", type=str, default="-1")
     parser.add_argument("-t", "--thread", type=int, default=-1, help="default is using all available")
     parser.add_argument("-p", "--platform", type=str, default="OpenCL")
-    parser.add_argument("-s", "--steps", type=float, default=2e4, help="number of steps per replica, default 1e5")
-    parser.add_argument("--tempStart", type=float, default=280, help="Starting temperature")
-    parser.add_argument("--tempEnd", type=float, default=562, help="Ending temperature")
+    parser.add_argument("-r", "--runtime", type=float, default=50, help="total runtime in ns")
+    parser.add_argument("--tempStart", type=float, default=200, help="Starting temperature")
+    parser.add_argument("--tempEnd", type=float, default=600, help="Ending temperature")
     parser.add_argument("--replicas", type=int, default=12, help="Number of replicas")
+    parser.add_argument("-x", "--exchange_frequency", type=int, default=200, help="Time steps between replica exchanges")
     parser.add_argument("--fromCheckPoint", type=str, default=None, help="The checkpoint file you want to start from")
     parser.add_argument("--subMode", type=int, default=-1)
     parser.add_argument("-f", "--forces", default="forces_setup.py")
     parser.add_argument("--parameters", default=None)
-    parser.add_argument("-r", "--reportFrequency", type=int, default=1000, help="Frequency to save data to output.nc")
+    parser.add_argument("--reportFrequency", type=int, default=1, help="Frequency to save data to output.nc")
     parser.add_argument("--fromOpenMMPDB", action="store_true", default=False)
     parser.add_argument("--fasta", type=str, default="crystal_structure.fasta")
-    parser.add_argument("--timeStep", type=int, default=2)
+    parser.add_argument("--timeStep", type=int, default=5, help="Femtosteps per time step, default is 5")
     parser.add_argument("--includeLigands", action="store_true", default=False)
     args = parser.parse_args()
 
