@@ -6,7 +6,6 @@ import matplotlib.cm as cm
 import matplotlib.pyplot as pyplot
 import numpy as np
 import openmmtools
-from cg_openmm.utilities.util import get_box_vectors, set_box_vectors
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.colors import Normalize
 from mdtraj import Topology, Trajectory
