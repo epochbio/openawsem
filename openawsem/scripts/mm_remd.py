@@ -88,7 +88,7 @@ def run_replica_exchange(args):
     total_simulation_time = args.runtime * nanosecond
     simulation_time_step = args.timeStep * femtosecond
 
-    simulation_steps = int(np.floor(otal_simulation_time / simulation_time_step))
+    simulation_steps = int(np.floor(total_simulation_time / simulation_time_step))
     exchange_attempts = int(np.floor(simulation_steps / args.exchange_frequency))
 
     # Initialize AWSEM system
