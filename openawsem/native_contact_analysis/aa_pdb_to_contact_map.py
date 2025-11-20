@@ -159,7 +159,8 @@ def process_trajectory_for_contact_frequency(movie_file_path: str, output_dir: s
     
     # 1. Initialization
     N_residues = N_native.shape[0]
-    count_matrix = np.zeros((N_residues, N_residues), dtype=np.int32)
+    native_count_matrix = np.zeros((N_residues, N_residues), dtype=np.int32)
+    all_count_matrix = np.zeros((N_residues, N_residues), dtype=np.int32)
     total_frames = 0
     p = PDBParser()
 
@@ -191,9 +192,11 @@ def process_trajectory_for_contact_frequency(movie_file_path: str, output_dir: s
             # Calculate the contact matrix for the current frame
             # N_native is passed as the mask/filter
             current_contact_matrix = get_contact_matrix(frame_coords, N_native)
+            current_all_matrix = get_contact_matrix(frame_coords, np.ones((N_residues, N_residues), dtype=np.int32))
             
             # Accumulate the count
-            count_matrix += current_contact_matrix
+            native_count_matrix += current_contact_matrix
+            all_count_matrix += current_all_matrix
             total_frames += 1
         
         except Exception as e:
@@ -204,11 +207,14 @@ def process_trajectory_for_contact_frequency(movie_file_path: str, output_dir: s
     # 3. Normalize and Plot
     if total_frames > 0:
         # Normalized matrix = N_ij / Total Frames
-        normalized_matrix = count_matrix / total_frames
+        normalized_matrix = native_count_matrix / total_frames
+        normalized_all_matrix = all_count_matrix / total_frames
     else:
-        normalized_matrix = count_matrix
+        normalized_matrix = native_count_matrix
+        normalized_all_matrix = all_count_matrix
 
     plot_lower_triangle_heatmap(normalized_matrix, base_name, output_dir)
+    plot_lower_triangle_heatmap(normalized_all_matrix, f'{base_name}_all', output_dir)
 
 def main():
     parser = argparse.ArgumentParser(
