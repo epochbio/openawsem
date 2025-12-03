@@ -109,39 +109,40 @@ def run_replica_exchange(args):
         simulation.context.setPositions(oa.pdb.positions)
         simulation.minimizeEnergy()
 
-    positions = simulation.context.getState(getPositions=True).getPositions()
+        positions = simulation.context.getState(getPositions=True).getPositions()
     
-    # Create the thermodynamic states for each replica
-    thermodynamic_states = []
-    for temp in temps:
-        integrator = LangevinIntegrator(temp, 1/picosecond, simulation_time_step)
-        # Note: We create a new integrator for each temperature.
-        # OpenMMTools will handle the rest.
-        state = ThermodynamicState(system=oa.system, temperature=temp)
-        thermodynamic_states.append(state)
+        # Create the thermodynamic states for each replica
+        thermodynamic_states = []
+        for temp in temps:
+            integrator = LangevinIntegrator(temp, 1/picosecond, simulation_time_step)
+            # Note: We create a new integrator for each temperature.
+            # OpenMMTools will handle the rest.
+            state = ThermodynamicState(system=oa.system, temperature=temp)
+            thermodynamic_states.append(state)
 
-    # Create the sampler states (initial positions and velocities for each replica)
-    sampler_states = []
-    for _ in temps:
-        state = SamplerState(positions=positions)
-        sampler_states.append(state)
+        # Create the sampler states (initial positions and velocities for each replica)
+        sampler_states = []
+        for _ in temps:
+            state = SamplerState(positions=positions)
+            sampler_states.append(state)
 
-    # Set up the reporter to save data
-    reporter = MultiStateReporter(os.path.join(toPath, "output.nc"), checkpoint_interval=args.reportFrequency)
+        # Set up the reporter to save data
+        reporter = MultiStateReporter(os.path.join(toPath, "output.nc"), checkpoint_interval=args.reportFrequency)
 
-     # Create and run the replica exchange sampler
-    sampler = ReplicaExchangeSampler(
-        mcmc_moves=LangevinDynamicsMove(
-            timestep=simulation_time_step,
-            collision_rate=1/picosecond,
-            n_steps = args.exchange_frequency
-        ),
-        number_of_iterations=exchange_attempts
-    )
+        # Create and run the replica exchange sampler
+        sampler = ReplicaExchangeSampler(
+            mcmc_moves=LangevinDynamicsMove(
+                timestep=simulation_time_step,
+                collision_rate=1/picosecond,
+                n_steps = args.exchange_frequency
+            ),
+            number_of_iterations=exchange_attempts
+        )
 
-    sampler.create(thermodynamic_states=thermodynamic_states,
-                   sampler_states=sampler_states,
-                   storage=reporter)
+        sampler.create(thermodynamic_states=thermodynamic_states,
+                    sampler_states=sampler_states,
+                    storage=reporter)
+        
     # Get start time
     start_time = time.time()
     # Start simulation
