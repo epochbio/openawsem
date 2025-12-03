@@ -100,7 +100,7 @@ def run_replica_exchange(args):
     oa.addForcesWithDefaultForceGroup(myForces)
 
     if args.fromCheckPoint:
-        integrator = LangevinIntegrator(temp, 1/picosecond, simulation_time_step)
+        integrator = CustomIntegrator(0.001)
         simulation = Simulation(oa.pdb.topology, oa.system, integrator, platform)
         simulation.loadCheckpoint(checkPointPath)
 
