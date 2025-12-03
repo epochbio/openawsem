@@ -100,7 +100,7 @@ def run_replica_exchange(args):
     oa.addForcesWithDefaultForceGroup(myForces)
 
     if args.fromCheckPoint:
-        simulation = ReplicaExchangeSampler.from_storage(checkPointPath)
+        sampler = ReplicaExchangeSampler.from_storage(checkPointPath)
 
     else:
         # Minimize the initial structure
