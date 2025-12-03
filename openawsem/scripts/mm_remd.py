@@ -99,11 +99,18 @@ def run_replica_exchange(args):
     myForces = forces_module.set_up_forces(oa, submode=args.subMode, contactParameterLocation=parametersLocation)
     oa.addForcesWithDefaultForceGroup(myForces)
 
-    # Minimize the initial structure
-    integrator = CustomIntegrator(0.001)
-    simulation = Simulation(oa.pdb.topology, oa.system, integrator, platform)
-    simulation.context.setPositions(oa.pdb.positions)
-    simulation.minimizeEnergy()
+    if args.fromCheckpoint:
+        integrator = LangevinIntegrator(temp, 1/picosecond, simulation_time_step)
+        simulation = Simulation(oa.pdb.topology, oa.system, integrator, platform)
+        simulation.loadCheckpoint(checkPointPath)
+
+    else:
+        # Minimize the initial structure
+        integrator = CustomIntegrator(0.001)
+        simulation = Simulation(oa.pdb.topology, oa.system, integrator, platform)
+        simulation.context.setPositions(oa.pdb.positions)
+        simulation.minimizeEnergy()
+
     positions = simulation.context.getState(getPositions=True).getPositions()
     
     # Create the thermodynamic states for each replica
