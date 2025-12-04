@@ -214,7 +214,7 @@ def create_fragment_memories(database: Path,
             # download PDBs if not exist    ##from script 'pdbget' (original author
             # unknown)
             if not os.path.isfile(pdb_dir + pdbID.upper() + ".pdb"):
-                exeline = "wget ftp://ftp.wwpdb.org/pub/pdb/data/structures/divided/pdb/"
+                exeline = "wget https://files.wwpdb.org/pub/pdb/data/structures/divided/pdb/"
                 exeline += pdbIDsecond + pdbIDthird + "/pdb" + pdbID + ".ent.gz"
                 os.system(exeline)
                 print(exeline)
@@ -318,7 +318,7 @@ def create_fragment_memories(database: Path,
                     if not os.path.isfile(pdb_seqres):
                         print(pdb_seqres)
                         print("Need to download pdb_seqres.txt from PDB!")
-                        print("ftp://ftp.wwpdb.org/pub/pdb/derived_data/pdb_seqres.txt")
+                        print("https://files.wwpdb.org/pub/pdb/derived_data/pdb_seqres.txt")
                         print("Copy to $HOME/opt/script/")
                         exit()
                     fastaFile = pdbID + '_' + chainID.upper()
