@@ -127,7 +127,7 @@ def main():
     results_list = []
     with mp.Pool(processes=args.jobs) as pool:
         task_args = [(f, args.ref, selection, args.name) for f in files]
-        for res in tqdm(pool.starmap(process_state_file, task_args), total=len(task_args)):
+        for res in tqdm.tdqm(pool.starmap(process_state_file, task_args), total=len(task_args)):
             results_list.append(res)
 
     # 4. Collate Results
