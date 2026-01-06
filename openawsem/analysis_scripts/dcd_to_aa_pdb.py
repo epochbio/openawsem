@@ -32,7 +32,7 @@ def process_trajectory(dcd_file, ref_pdb, sequence_dict):
         
         # 2. Save intermediate coarse-grained PDB
         oa_pdb = f"{file_prefix}_OA.pdb"
-        aa_pdb = f"{file_prefix}_OA.pdb"
+        aa_pdb = f"{file_prefix}_AA.pdb"
         traj.save_pdb(oa_pdb)
         traj.save_pdb(aa_pdb)
         
