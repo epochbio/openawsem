@@ -27,7 +27,7 @@ pdb = args.pdb
 seq_dic = get_seq_dic(fasta=args.fasta)
 
 file_name = pdb.split('.')[0]
-traj = md.load(top=pdb)
+traj = md.load_pdb(pdb)
 print(f"Successfully loaded {file_name}.pdb'")
 
 traj.save_pdb(f"{file_name}_reference_AA.pdb")
