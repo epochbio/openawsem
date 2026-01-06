@@ -7,9 +7,12 @@ import os
 import argparse
 import glob
 import multiprocessing as mp
-from tqdm import tqdm
+import tqdm
 from MDAnalysis.analysis import rms, distances
 from MDAnalysis.analysis.dssp import DSSP
+
+# Prevent the monitor thread from starting
+tqdm.tqdm.monitor_interval = 0
 
 # --- Worker Function ---
 def process_state_file(f, ref_file, selection, base_output_name):
@@ -62,6 +65,9 @@ def process_state_file(f, ref_file, selection, base_output_name):
         rmsd_a = rms.RMSD(u, u, select=sel_a).run().results.rmsd[:, 2]
         rmsd_b = rms.RMSD(u, u, select=sel_b).run().results.rmsd[:, 2]
         fel_data = np.column_stack((rmsd_a, rmsd_b))
+
+        u.trajectory.close()
+        ref.trajectory.close()
 
         return {
             'tag': tag,
