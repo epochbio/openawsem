@@ -32,11 +32,13 @@ def process_trajectory(dcd_file, ref_pdb, sequence_dict):
         
         # 2. Save intermediate coarse-grained PDB
         oa_pdb = f"{file_prefix}_OA.pdb"
+        aa_pdb = f"{file_prefix}_OA.pdb"
         traj.save_pdb(oa_pdb)
+        traj.save_pdb(aa_pdb)
         
         # 3. Perform the OpenAWSEM conversion to standard PDB
         # Assuming this function takes (prefix, sequence_dict)
-        convert_openMM_to_standard_pdb(file_prefix, sequence_dict)
+        convert_openMM_to_standard_pdb(aa_pdb, sequence_dict)
         
         return f"Successfully processed: {dcd_file}"
     except Exception as e:
