@@ -1,6 +1,7 @@
 import os
 import glob
 import mdtraj as md
+import multiprocessing as mp
 import argparse
 import sys
 
@@ -25,16 +26,22 @@ parser.add_argument("-dp",
                     "--dcd_pattern",
                     default="*.dcd",
                     help="pattern to search for DCD files for. Default='*.dcd'. Additional '.'s in the name may cause errors")
+parser.add_argument("-j", "--jobs",
+                        type=int,   
+                        default=mp.cpu_count(),
+                        help="Number of parallel processes to use (default: max available CPUs).")
 
 args = parser.parse_args()
 
 folder = args.folder
 ref = args.ref
+num_processes = args.jobs
 
-seq_dic = get_seq_dic(fasta=args.fasta)
+seq_dict = get_seq_dic(fasta=args.fasta)
 pattern = args.dcd_pattern
 
 dcd_files = glob.glob(f'{folder}/{pattern}')
+
 
 # Replace filenames with your actual files
 for file in dcd_files:
@@ -45,10 +52,18 @@ for file in dcd_files:
     print(f"Wrote coarse-grained PDB {file_name}_OA.pdb")
     traj.save_pdb(f"{file_name}_AA.pdb")
 
-    convert_openMM_to_standard_pdb(
-        fileName=f"{file_name}_AA.pdb",
-        seq_dic=seq_dic,
-    )
-    print(f"Successfully converted to all-atom format and wrote {file_name}_AA.pdb")
 
+# 3. Use multiprocessing
+print(f"Starting analysis with {num_processes} parallel processes...")
+try:
+    task_args = [(f.split('.')[0], seq_dict) for f in dcd_files]
+    
+    with mp.Pool(processes=num_processes) as pool:
+        # Note: numpy arrays are efficiently pickled/passed to the pool workers
+        pool.starmap(convert_openMM_to_standard_pdb, task_args)
+        
+    print("\nAll contact frequency maps processed successfully.")
 
+except Exception as e:
+    print(f"\nAn error occurred during multiprocessing: {e}")
+    sys.exit(1)
