@@ -75,8 +75,17 @@ def process_state_file(f, ref_file, selection, temp_map):
 
 def plot_metrics_vs_temp(df, base_name):
     """Generates plots for structural metrics vs Temperature."""
-    # Group by temperature and average (in case multiple states map to one temp)
-    summary = df.groupby('Temperature').mean().sort_index().reset_index()
+    
+    # 1. Force numeric conversion for the columns we want to plot
+    # This ensures strings like '1.0' or '300' become actual floats
+    cols_to_fix = ['Temperature', 'Avg_Rg', 'Avg_Q3', 'Avg_E2E', 'Avg_RMSD']
+    for col in cols_to_fix:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+
+    # 2. Use numeric_only=True in the mean() call
+    # This prevents pandas from trying to average the 'State' strings
+    summary = df.groupby('Temperature').mean(numeric_only=True).sort_index().reset_index()
     
     metrics = [('Avg_Rg', 'Radius of Gyration (Å)'), 
                ('Avg_Q3', 'Q3 Content'), 
