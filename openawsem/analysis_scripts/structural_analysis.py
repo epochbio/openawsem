@@ -204,7 +204,7 @@ def main():
         
         # Generate the plots
         plot_metrics_vs_temp(df, args.name, temp_unit=temp_unit,
-                             ref_temp=int(args.ref_temp))
+                             ref_temp=float(args.ref_temp))
         print("Analysis complete.")
 
 if __name__ == "__main__":
