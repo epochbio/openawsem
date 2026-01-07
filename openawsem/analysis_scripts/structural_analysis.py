@@ -116,9 +116,11 @@ def plot_metrics_vs_temp(df, base_name, temp_unit='K', ref_temp=False):
     for i, (col, label) in enumerate(metrics):
         axes[i].plot(summary['Temperature'], summary[col], marker='o', linestyle='-', color='teal')
     
-        # Fix: Explicitly set ticks to be your temperature values
-        # This prevents the red line from becoming the only label
-        axes[i].set_xticks(summary['Temperature'])
+        temps = summary['Temperature'].values
+        
+        # Explicitly set the positions AND the text labels
+        axes[i].set_xticks(temps)
+        axes[i].set_xticklabels([f"{t:.1f}" for t in temps])
         
         axes[i].set_xlabel(f'Temperature ({temp_unit})')
         axes[i].set_ylabel(label)
