@@ -92,7 +92,7 @@ def process_state_file(f, ref_file, selection, temp_map):
     except Exception as e:
         return f"Error in {filename}: {str(e)}"
 
-def plot_metrics_vs_temp(df, base_name, temp_unit='K'):
+def plot_metrics_vs_temp(df, base_name, temp_unit='K', ref_temp=False):
     """Generates plots for structural metrics vs Temperature."""
     
     # 1. Force numeric conversion for the columns we want to plot
@@ -119,6 +119,8 @@ def plot_metrics_vs_temp(df, base_name, temp_unit='K'):
         axes[i].set_ylabel(label)
         axes[i].set_title(f'{label} vs T')
         axes[i].grid(True, alpha=0.3)
+        if ref_temp:
+            axes[i].axvline(ref_temp, color='red', ls='dashed')
     
     plt.tight_layout()
     plt.savefig(f"{base_name}_temp_trends.png", dpi=300)
@@ -146,6 +148,10 @@ def main():
                         "--convert_temp",
                         type=bool, default=False,
                         help="Set to True to convert temperature units from K to C by subtracting 273")
+    parser.add_argument("-rt",
+                    "--ref_temp",
+                    default=False,
+                    help="Value to use for reference temperatures in plots")
     args = parser.parse_args()
 
     # Load Temperature Map
@@ -184,7 +190,8 @@ def main():
         df.to_csv(f"{args.name}_temperature_summary.csv", index=False)
         
         # Generate the plots
-        plot_metrics_vs_temp(df, args.name, temp_unit=temp_unit)
+        plot_metrics_vs_temp(df, args.name, temp_unit=temp_unit,
+                             ref_temp=args.ref_temp )
         print("Analysis complete.")
 
 if __name__ == "__main__":
