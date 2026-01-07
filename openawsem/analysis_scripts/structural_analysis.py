@@ -155,7 +155,7 @@ def main():
     args = parser.parse_args()
 
     # Load Temperature Map
-    with open(args.json_map, 'r') as f:
+    with open(args.temp_map, 'r') as f:
         temp_map = json.load(f)
 
     temp_unit = 'K' # default unit is Kelvin
