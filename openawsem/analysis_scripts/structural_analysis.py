@@ -46,7 +46,8 @@ def process_state_file(f, ref_file, selection, temp_map):
             first_res = protein.residues[0].resid
             last_res = protein.residues[-1].resid
             residue_range_sel = f"protein and not (resnum {first_res} or " \
-                "resnum {last_res}) and (name N or name CA or name C or name O)"
+                f"resnum {last_res}) and (name N or name " \
+                    " CA or name C or name O)"
             trimmed_backbone = u.select_atoms(residue_range_sel)
 
             # Check trimming worked:
