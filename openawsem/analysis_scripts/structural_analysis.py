@@ -103,7 +103,7 @@ def plot_metrics_vs_temp(df, base_name):
     metrics = [('Avg_Rg', 'Radius of Gyration (Å)'), 
                ('Avg_Q3', 'Q3 Content'), 
                ('Avg_E2E', 'End-to-End Distance (Å)'),
-               ('Avg RMSD', 'Root-mean-square-fluctuation (Å)')]
+               ('Avg_RMSD', 'Root-mean-square-fluctuation (Å)')]
     
     fig, axes = plt.subplots(1, len(metrics), figsize=(18, 5))
     
