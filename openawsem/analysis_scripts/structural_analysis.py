@@ -46,7 +46,7 @@ def process_state_file(f, ref_file, selection, temp_map):
             first_res = protein.residues[0].resid
             last_res = protein.residues[-1].resid
             residue_range_sel = f"protein and not (resnum {first_res} or" \
-                f" resname {last_res}) and (name N or name CA or name O)"
+                "resnum {last_res}) and (name N or name CA or name C or name O)"
             trimmed_backbone = u.select_atoms(residue_range_sel)
 
             # Check trimming worked:
@@ -62,8 +62,11 @@ def process_state_file(f, ref_file, selection, temp_map):
             dssp = DSSP(trimmed_backbone).run()
             q3_per_frame = [np.sum(np.isin(frame, ['H', 'E', 'G'])) / n_residues for frame in dssp.results.dssp]
             q3_avg = np.mean(q3_per_frame)
-        except:
-            print('Q3 calculation failed')
+        except Exception as e:
+            print(f'Q3 calculation failed with error: {e}')
+            import traceback
+            # Print traceback for error
+            traceback.print_exc()
             q3_avg = np.nan
 
         # End-to-End Distance
