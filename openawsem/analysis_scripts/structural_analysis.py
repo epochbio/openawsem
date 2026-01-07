@@ -41,6 +41,7 @@ def process_state_file(f, ref_file, selection, temp_map):
         # Q3 Secondary Structure
         q3_avg = 0
         try:
+            print('Attempting Q3 calculations')
             # Trim possibly incomplete termini
             first_res = protein.residues[0].resid
             last_res = protein.residues[-1].resid
@@ -62,6 +63,7 @@ def process_state_file(f, ref_file, selection, temp_map):
             q3_per_frame = [np.sum(np.isin(frame, ['H', 'E', 'G'])) / n_residues for frame in dssp.results.dssp]
             q3_avg = np.mean(q3_per_frame)
         except:
+            print('Q3 calculation failed')
             q3_avg = np.nan
 
         # End-to-End Distance
