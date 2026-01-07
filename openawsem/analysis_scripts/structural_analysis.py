@@ -116,13 +116,13 @@ def plot_metrics_vs_temp(df, base_name, temp_unit='K', ref_temp=False):
     for i, (col, label) in enumerate(metrics):
         axes[i].plot(summary['Temperature'], summary[col], marker='o', linestyle='-', color='teal')
     
-        temps = summary['Temperature'].values
+        # temps = summary['Temperature'].values
         
-        # Explicitly set the positions AND the text labels
-        axes[i].set_xticks(temps)
-        axes[i].set_xticklabels([f"{t:.1f}" for t in temps])
+        # # Explicitly set the positions AND the text labels
+        # axes[i].set_xticks(temps)
+        # axes[i].set_xticklabels([f"{t:.1f}" for t in temps])
         
-        axes[i].set_xlabel(f'Temperature ({temp_unit})')
+        # axes[i].set_xlabel(f'Temperature ({temp_unit})')
         axes[i].set_ylabel(label)
         axes[i].set_title(f'{label} vs T')
         
@@ -204,7 +204,7 @@ def main():
         
         # Generate the plots
         plot_metrics_vs_temp(df, args.name, temp_unit=temp_unit,
-                             ref_temp=args.ref_temp )
+                             ref_temp=int(args.ref_temp))
         print("Analysis complete.")
 
 if __name__ == "__main__":
