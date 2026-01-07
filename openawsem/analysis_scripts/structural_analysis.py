@@ -92,7 +92,7 @@ def process_state_file(f, ref_file, selection, temp_map):
     except Exception as e:
         return f"Error in {filename}: {str(e)}"
 
-def plot_metrics_vs_temp(df, base_name):
+def plot_metrics_vs_temp(df, base_name, temp_unit='K'):
     """Generates plots for structural metrics vs Temperature."""
     
     # 1. Force numeric conversion for the columns we want to plot
@@ -115,7 +115,7 @@ def plot_metrics_vs_temp(df, base_name):
     
     for i, (col, label) in enumerate(metrics):
         axes[i].plot(summary['Temperature'], summary[col], marker='o', linestyle='-', color='teal')
-        axes[i].set_xlabel('Temperature (K)')
+        axes[i].set_xlabel(f'Temperature ({temp_unit})')
         axes[i].set_ylabel(label)
         axes[i].set_title(f'{label} vs T')
         axes[i].grid(True, alpha=0.3)
@@ -126,16 +126,38 @@ def plot_metrics_vs_temp(df, base_name):
 
 def main():
     parser = argparse.ArgumentParser(description="REMD Data Analysis: Metrics vs Temperature")
-    parser.add_argument("--input_dir", required=True)
-    parser.add_argument("--json_map", required=True, help="JSON file mapping state IDs to Temperatures")
-    parser.add_argument("--name", required=True)
-    parser.add_argument("--ref", default="native_structure.pdb")
-    parser.add_argument("-j", "--jobs", type=int, default=mp.cpu_count())
+    parser.add_argument("-i", "--input_dir",
+                        required=True,
+                        help="Path to directory containing state all-atom PDBs")
+    parser.add_argument("-tm", "--temp_map",
+                        required=True,
+                        help="JSON file mapping state IDs to Temperatures")
+    parser.add_argument("-n","--name", required=True,
+                        help="File prefix to save files with")
+    parser.add_argument("-r",
+                        "--ref",
+                        default="native_structure.pdb",
+                        help="PDB for alignment and RMSD calculations")
+    parser.add_argument("-j",
+                        "--jobs",
+                        type=int,
+                        default=mp.cpu_count())
+    parser.add_argument("-ct",
+                        "--convert_temp",
+                        type=bool, default=False,
+                        help="Set to True to convert temperature units from K to C by subtracting 273")
     args = parser.parse_args()
 
     # Load Temperature Map
     with open(args.json_map, 'r') as f:
         temp_map = json.load(f)
+
+    temp_unit = 'K' # default unit is Kelvin
+    if args.convert_temp:
+        # Remove 273 to convert to celsius.
+        for id, temp in temp_map.items():
+            temp_map[id] = temp - 273
+        temp_unit = 'C'
 
     files = sorted(glob.glob(os.path.join(args.input_dir, "state_*_AA.pdb")))
     selection = "protein and name CA"
@@ -162,7 +184,7 @@ def main():
         df.to_csv(f"{args.name}_temperature_summary.csv", index=False)
         
         # Generate the plots
-        plot_metrics_vs_temp(df, args.name)
+        plot_metrics_vs_temp(df, args.name, temp_unit=temp_unit)
         print("Analysis complete.")
 
 if __name__ == "__main__":
