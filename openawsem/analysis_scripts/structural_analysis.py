@@ -8,6 +8,7 @@ import glob
 import json
 import multiprocessing as mp
 from MDAnalysis.analysis import rms, distances
+from MDAnalysis.analysis.dssp import DSSP
 
 def process_state_file(f, ref_file, selection, temp_map):
     """
@@ -37,17 +38,29 @@ def process_state_file(f, ref_file, selection, temp_map):
         # Radius of Gyration
         rg_vals = [protein.radius_of_gyration() for ts in u.trajectory]
         
-        # Q3 Secondary Structure (Simplified for CG or general speed)
-        # Note: MDAnalysis DSSP requires specific atom names (N, CA, C, O)
-        # If your CG model lacks these, this block will return 0.
+        # Q3 Secondary Structure
         q3_avg = 0
         try:
-            from MDAnalysis.analysis.dssp import DSSP
-            backbone = u.select_atoms("protein and (name N or name CA or name C or name O)")
-            if len(backbone) > 0:
-                dssp = DSSP(backbone).run()
-                q3_per_frame = [np.sum(np.isin(frame, ['H', 'E', 'G'])) / len(backbone.residues) for frame in dssp.results.dssp]
-                q3_avg = np.mean(q3_per_frame)
+            # Trim possibly incomplete termini
+            first_res = protein.residues[0].resid
+            last_res = protein.residues[-1].resid
+            residue_range_sel = f"protein and not (resnum {first_res} or" \
+                f" resname {last_res}) and (name N or name CA or name O)"
+            trimmed_backbone = u.select_atoms(residue_range_sel)
+
+            # Check trimming worked:
+            n_residues = len(trimmed_backbone.residues)
+            n_n = len(trimmed_backbone.select_atoms("name N"))
+            n_ca = len(trimmed_backbone.select_atoms("name CA"))
+
+            if n_n != n_ca or n_n != n_residues:
+                raise ValueError("Termini trimming failed"
+                                 f"Current counts: N={n_n}, CA={n_ca}, "
+                                 f"Total residue number {n_residues}")
+
+            dssp = DSSP(trimmed_backbone).run()
+            q3_per_frame = [np.sum(np.isin(frame, ['H', 'E', 'G'])) / n_residues for frame in dssp.results.dssp]
+            q3_avg = np.mean(q3_per_frame)
         except:
             q3_avg = np.nan
 
@@ -89,9 +102,10 @@ def plot_metrics_vs_temp(df, base_name):
     
     metrics = [('Avg_Rg', 'Radius of Gyration (Å)'), 
                ('Avg_Q3', 'Q3 Content'), 
-               ('Avg_E2E', 'End-to-End Distance (Å)')]
+               ('Avg_E2E', 'End-to-End Distance (Å)'),
+               ('Avg RMSD', 'Root-mean-square-fluctuation (Å)')]
     
-    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+    fig, axes = plt.subplots(1, len(metrics), figsize=(18, 5))
     
     for i, (col, label) in enumerate(metrics):
         axes[i].plot(summary['Temperature'], summary[col], marker='o', linestyle='-', color='teal')
