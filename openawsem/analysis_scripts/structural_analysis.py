@@ -115,12 +115,19 @@ def plot_metrics_vs_temp(df, base_name, temp_unit='K', ref_temp=False):
     
     for i, (col, label) in enumerate(metrics):
         axes[i].plot(summary['Temperature'], summary[col], marker='o', linestyle='-', color='teal')
+    
+        # 1. Set labels after plotting everything
         axes[i].set_xlabel(f'Temperature ({temp_unit})')
         axes[i].set_ylabel(label)
         axes[i].set_title(f'{label} vs T')
-        axes[i].grid(True, alpha=0.3)
+        
         if ref_temp:
-            axes[i].axvline(ref_temp, color='red', ls='dashed')
+            # 2. Add line and ensure it doesn't break the labels
+            axes[i].axvline(ref_temp, color='red', ls='dashed', label='Reference')
+        
+        axes[i].grid(True, alpha=0.3)
+        # 3. Force visibility if using shared axes
+        axes[i].tick_params(axis='x', labelbottom=True)
     
     plt.tight_layout()
     plt.savefig(f"{base_name}_temp_trends.png", dpi=300)
