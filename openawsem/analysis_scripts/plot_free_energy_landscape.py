@@ -406,7 +406,6 @@ def main():
     
     plot_combined_population(
         final_data, 
-        T=avg_temp, 
         filename="Combined_Protein_FEL.png"
     )
     
