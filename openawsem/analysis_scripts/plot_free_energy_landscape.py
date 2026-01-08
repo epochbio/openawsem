@@ -168,7 +168,7 @@ def plot_combined_population(rmsd_data, filename="combined_population.png"):
     
     # pcolormesh is better for 'frequency' maps than contourf
     X, Y = np.meshgrid(x_edges, y_edges)
-    mesh = plt.pcolormesh(X, Y, P, cmap='magma_r', shading='auto')
+    mesh = plt.pcolormesh(X, Y, P, cmap='hot_r', shading='auto')
     
     cbar = plt.colorbar(mesh)
     cbar.set_label('Population Fraction', fontsize=12)
