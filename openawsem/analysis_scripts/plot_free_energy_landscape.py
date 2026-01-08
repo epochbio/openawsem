@@ -410,8 +410,7 @@ def main():
     )
     
     plot_population_density(
-            final_data, 
-            T=avg_temp, 
+            final_data,
             filename="Combined_Protein_Polulation_density.png"
         )
 
