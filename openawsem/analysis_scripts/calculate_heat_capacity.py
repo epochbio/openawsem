@@ -14,7 +14,7 @@ def main():
     Note: process_replica_exchange_data should first be run to determine the determine the start
     of the production region and energy decorrelation time."""
 
-    parser = argparse.ArgumentParser(description="REMD Data Analysis: Metrics vs Temperature")
+    parser = argparse.ArgumentParser(description="Heat capacity calculations for OpenAWSEM trajectories")
     parser.add_argument("-i", "--input_dir",
                         default = "../01_replica_exchange/output",
                         help = "path to folder where trajectories are stored."
