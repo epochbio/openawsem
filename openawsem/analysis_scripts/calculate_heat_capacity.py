@@ -2,33 +2,58 @@
 
 import os
 import pickle
-
-from cg_openmm.thermo.calc import *
+import argparse
+from cg_openmm.thermo.calc import get_heat_capacity
 from openmm import unit
 
-# This example demonstrates how to calculate heat capacity as a function of temperature from
-# replica exchange energies, with uncertainties estimated using pyMBAR.
 
-# Note: process_replica_exchange_data should first be run to determine the determine the start
-# of the production region and energy decorrelation time.
+def main():
+    """ This example demonstrates how to calculate heat capacity as a function of temperature from
+    replica exchange energies, with uncertainties estimated using pyMBAR.
 
+    Note: process_replica_exchange_data should first be run to determine the determine the start
+    of the production region and energy decorrelation time."""
 
-# Job settings
-output_directory = '../01_replica_exchange/output'
-output_data = os.path.join(output_directory, "output.nc")
+    parser = argparse.ArgumentParser(description="REMD Data Analysis: Metrics vs Temperature")
+    parser.add_argument("-i", "--input_dir",
+                        default = "../01_replica_exchange/output",
+                        help = "path to folder where trajectories are stored."
+                        "default is '../01_replica_exchange/output")
+    parser.add_argument("-t","--traj",
+                        default="output.nc",
+                        help = "name of the trajectory output file. Default is" \
+                        "output.nc")
+    parser.add_argument("-s", "--analysis_stats",
+                        default = "../01_replica_exchange/analysis_stats_discard_20ns.pkl")
+    parser.add_argument("-o", "--output",
+                        help = "Name to save heat capacity file to in format" \
+                        " X_heat_capacity.png. If not set defaults to" \
+                        "'heat_capacity.png")
+    
+    args = parser.parse_args()
+    output_directory = args.input_dir
+    output_data = os.path.join(output_directory, args.traj)
 
-# Load in trajectory stats:
-analysis_stats = pickle.load(open("../01_replica_exchange/analysis_stats_discard_20ns.pkl","rb"))
+    if args.output:
+        plot_name = "_".join([args.output, 'heat_capacity.png'])
+    else:
+        plot_name = 'heat_capacity.png'
 
-# Read the simulation coordinates for individual temperature replicas                                                                     
-C_v, dC_v, new_temperature_list, FWHM, Tm, Cv_height, N_eff = get_heat_capacity(
-    output_data=output_data,
-    frame_begin=analysis_stats["production_start"],
-    sample_spacing=analysis_stats["energy_decorrelation"],
-    num_intermediate_states=3,
-    plot_file="heat_capacity.pdf",
-)
+    # Load in trajectory stats:
+    analysis_stats = pickle.load(open(args.analysis_stats,"rb"))
 
-print(f"T({new_temperature_list[0].unit})  Cv({C_v[0].unit})  dCv({dC_v[0].unit})")
-for i, C in enumerate(C_v):
-    print(f"{new_temperature_list[i]._value:>8.2f}{C_v[i]._value:>10.4f} {dC_v[i]._value:>10.4f}")
+    # Read the simulation coordinates for individual temperature replicas                                                                     
+    C_v, dC_v, new_temperature_list, FWHM, Tm, Cv_height, N_eff = get_heat_capacity(
+        output_data=output_data,
+        frame_begin=analysis_stats["production_start"],
+        sample_spacing=analysis_stats["energy_decorrelation"],
+        num_intermediate_states=3,
+        plot_file=plot_name,
+    )
+
+    print(f"T({new_temperature_list[0].unit})  Cv({C_v[0].unit})  dCv({dC_v[0].unit})")
+    for i, C in enumerate(C_v):
+        print(f"{new_temperature_list[i]._value:>8.2f}{C_v[i]._value:>10.4f} {dC_v[i]._value:>10.4f}")
+
+if __name__ == "__main__":
+    main()
