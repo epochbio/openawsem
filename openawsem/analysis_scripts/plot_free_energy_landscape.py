@@ -190,6 +190,47 @@ def calculate_segment_rmsd_for_fel(trajectory_file, reference_file,
 
     return rmsd_data
 
+def plot_combined_population(rmsd_data, filename="combined_population.png"):
+    """
+    Plots a 2D Heatmap of the sampled RMSD space across all combined states.
+    """
+    # 1. Setup the grid
+    # We look at the max RMSD across the whole combined dataset to set limits
+    max_A = np.max(rmsd_data[:, 0]) + 0.5
+    max_B = np.max(rmsd_data[:, 1]) + 0.5
+    bins = 100 
+    
+    # 2. Calculate Histogram
+    counts, x_edges, y_edges = np.histogram2d(
+        rmsd_data[:, 0], 
+        rmsd_data[:, 1], 
+        bins=bins,
+        range=[[0, max_A], [0, max_B]]
+    )
+
+    # 3. Normalize to Population Fraction
+    # Total frames across all simulations combined
+    P = counts.T / np.sum(counts) 
+
+    # 4. Plotting
+    plt.figure(figsize=(10, 8))
+    
+    # pcolormesh is better for 'frequency' maps than contourf
+    # We use 'inferno' or 'magma' which are great for density
+    X, Y = np.meshgrid(x_edges, y_edges)
+    mesh = plt.pcolormesh(X, Y, P, cmap='magma', shading='auto')
+    
+    cbar = plt.colorbar(mesh)
+    cbar.set_label('Population Fraction', fontsize=12)
+
+    plt.xlabel(r'$\mathrm{RMSD_{Segment\ A}}$ ($\mathrm{\AA}$)', fontsize=14)
+    plt.ylabel(r'$\mathrm{RMSD_{Segment\ B}}$ ($\mathrm{\AA}$)', fontsize=14)
+    plt.title('Combined Population Density Map', fontsize=16)
+    
+    plt.tight_layout()
+    plt.savefig(filename, dpi=300)
+    print(f"Saved combined plot to {filename}")
+
 def plot_free_energy_landscape(rmsd_data, T, filename="fel_plot.png"):
     """
     Calculates the Free Energy Landscape (FEL) from 2D RMSD data 
@@ -335,10 +376,10 @@ def main():
     print("\n--- Analysis Complete ---")
     print("\n--- Plotting ---")
 
-    for file_tag, data in results_dict.items():
-        plot_free_energy_landscape(data,
-                                   T=temp_map[file_tag.split('_')[-2]],
-                                   filename=f"{file_tag}_FEL.png")
+    # for file_tag, data in results_dict.items():
+    #     plot_free_energy_landscape(data,
+    #                                T=temp_map[file_tag.split('_')[-2]],
+    #                                filename=f"{file_tag}_FEL.png")
         
     # Step 2: Aggregate Data
     combined_rmsd_data = []
@@ -363,7 +404,7 @@ def main():
     # For a combined plot, use the average temperature or a specific reference temp
     avg_temp = np.mean(list(temp_map.values()))
     
-    plot_free_energy_landscape(
+    plot_combined_population(
         final_data, 
         T=avg_temp, 
         filename="Combined_Protein_FEL.png"
