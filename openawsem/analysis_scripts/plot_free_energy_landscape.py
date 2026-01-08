@@ -373,5 +373,5 @@ def main():
 
     print("Done. Saved as Combined_Protein_FEL and population density figures.png")
 
-    if __name__ == "__main__":
-        main()
+if __name__ == "__main__":
+    main()
