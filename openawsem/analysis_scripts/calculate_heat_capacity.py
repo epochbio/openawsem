@@ -24,7 +24,10 @@ def main():
                         help = "name of the trajectory output file. Default is" \
                         "output.nc")
     parser.add_argument("-s", "--analysis_stats",
-                        default = "../01_replica_exchange/analysis_stats_discard_20ns.pkl")
+                        default = "../01_replica_exchange/analysis_stats_discard_20ns.pkl",
+                        help = "Path to pickled analysis of the trajecory" \
+                        "created by 'process_remd.py'. Defaults to " \
+                        "'../01_replica_exchange/analysis_stats_discard_20ns.pkl'")
     parser.add_argument("-o", "--output",
                         help = "Name to save heat capacity file to in format" \
                         " X_heat_capacity.png. If not set defaults to" \
