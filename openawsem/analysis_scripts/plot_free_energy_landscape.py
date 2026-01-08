@@ -293,6 +293,10 @@ def main():
                         "--convert_temp",
                         type=bool, default=False,
                         help="Set to True to convert temperature units from K to C by subtracting 273")
+    parser.add_argument("-j",
+                        "--jobs",
+                        type=int,
+                        default=mp.cpu_count())
     
     args = parser.parse_args()
     
@@ -302,17 +306,17 @@ def main():
 
 
     # Dictionary to hold all results
-    all_rmsd_results = {}
+    # all_rmsd_results = {}
 
     print(f"Starting analysis with Reference: {args.ref}...")
 
-    for file_path in files:
-        file_tag = os.path.basename(file_path).replace(".pdb", "")
-        print(f"\n--- Analyzing: {file_tag} ---")
+    # for file_path in files:
+    #     file_tag = os.path.basename(file_path).replace(".pdb", "")
+    #     print(f"\n--- Analyzing: {file_tag} ---")
 
-        # Step 1: Load and Align
-        rmsd_data = calculate_segment_rmsd_for_fel(file_path, args.ref)
-        all_rmsd_results[file_tag] = rmsd_data
+    #     # Step 1: Load and Align
+    #     rmsd_data = calculate_segment_rmsd_for_fel(file_path, args.ref)
+    #     all_rmsd_results[file_tag] = rmsd_data
 
 
     with mp.Pool(processes=args.jobs) as pool:
