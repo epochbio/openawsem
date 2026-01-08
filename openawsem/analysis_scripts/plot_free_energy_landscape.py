@@ -337,7 +337,7 @@ def main():
 
     for file_tag, data in results_dict.items():
         plot_free_energy_landscape(data,
-                                   T=temp_map[int(file_tag.split('_')[-2])],
+                                   T=temp_map[file_tag.split('_')[-2]],
                                    filename=f"{file_tag}_FEL.png")
         
     # Step 2: Aggregate Data
