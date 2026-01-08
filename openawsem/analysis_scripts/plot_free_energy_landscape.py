@@ -15,55 +15,6 @@ import matplotlib.cm as cm
 
 from MDAnalysis.analysis import rms
 
-def plot_population_density(rmsd_data, filename="population_map.png", use_log_scale=False):
-    """
-    Plots a 2D density map showing how often each RMSD state was sampled.
-    """
-    # 1. Create 2D Histogram
-    max_A = np.ceil(rmsd_data[:, 0].max() * 10) / 10.0 + 0.1
-    max_B = np.ceil(rmsd_data[:, 1].max() * 10) / 10.0 + 0.1
-    bins = 100 # Increased bins for better density resolution
-    
-    counts, x_edges, y_edges = np.histogram2d(
-        rmsd_data[:, 0], 
-        rmsd_data[:, 1], 
-        bins=bins,
-        range=[[0, max_A], [0, max_B]]
-    )
-
-    # 2. Convert to Probability Density
-    # P represents the fraction of total simulation time spent in that bin
-    P = counts.T / np.sum(counts) 
-
-    # 3. Prepare coordinates
-    X_centers = (x_edges[:-1] + x_edges[1:]) / 2.0
-    Y_centers = (y_edges[:-1] + y_edges[1:]) / 2.0
-    
-    plt.figure(figsize=(10, 8))
-
-    # 4. Plotting
-    if use_log_scale:
-        # We use a small floor to avoid log(0) issues for empty bins
-        P_plot = np.log10(P + 1e-6)
-        label = r"$\log_{10}(\mathrm{Population\ Fraction})$"
-    else:
-        P_plot = P
-        label = "Population Fraction (Probability)"
-
-    # Use pcolormesh for a clean "heatmap" look, or contourf for smooth gradients
-    mesh = plt.pcolormesh(X_centers, Y_centers, P_plot, cmap='magma', shading='auto')
-    
-    # Add Colorbar
-    cbar = plt.colorbar(mesh)
-    cbar.set_label(label, fontsize=14)
-
-    # Formatting
-    plt.xlabel(r'$\mathrm{RMSD_{Segment\ A}}$ ($\mathrm{\AA}$)', fontsize=14)
-    plt.ylabel(r'$\mathrm{RMSD_{Segment\ B}}$ ($\mathrm{\AA}$)', fontsize=14)
-    plt.title('Protein Conformational Sampling Density', fontsize=16)
-    
-    plt.tight_layout()
-    plt.savefig(filename)
 
 def load_temp_map(args):
     """Load temp map from JSON, and convert to Celsius if specified"""
@@ -216,9 +167,8 @@ def plot_combined_population(rmsd_data, filename="combined_population.png"):
     plt.figure(figsize=(10, 8))
     
     # pcolormesh is better for 'frequency' maps than contourf
-    # We use 'inferno' or 'magma' which are great for density
     X, Y = np.meshgrid(x_edges, y_edges)
-    mesh = plt.pcolormesh(X, Y, P, cmap='magma', shading='auto')
+    mesh = plt.pcolormesh(X, Y, P, cmap='magma_r', shading='auto')
     
     cbar = plt.colorbar(mesh)
     cbar.set_label('Population Fraction', fontsize=12)
@@ -231,82 +181,82 @@ def plot_combined_population(rmsd_data, filename="combined_population.png"):
     plt.savefig(filename, dpi=300)
     print(f"Saved combined plot to {filename}")
 
-def plot_free_energy_landscape(rmsd_data, T, filename="fel_plot.png"):
-    """
-    Calculates the Free Energy Landscape (FEL) from 2D RMSD data 
-    and generates a contour plot.
+# def plot_free_energy_landscape(rmsd_data, T, filename="fel_plot.png"):
+#     """
+#     Calculates the Free Energy Landscape (FEL) from 2D RMSD data 
+#     and generates a contour plot.
     
-    Args:
-        rmsd_data (np.ndarray): N x 2 array of RMSD values.
-        T (float): Simulation temperature in Kelvin.
-        filename (str): Output filename for the plot.
-    """
-    R = 8.31446 / 1000.0  # Gas constant in kJ/(mol*K)
-    kT = R * T            # kT in kJ/mol
+#     Args:
+#         rmsd_data (np.ndarray): N x 2 array of RMSD values.
+#         T (float): Simulation temperature in Kelvin.
+#         filename (str): Output filename for the plot.
+#     """
+#     R = 8.31446 / 1000.0  # Gas constant in kJ/(mol*K)
+#     kT = R * T            # kT in kJ/mol
 
-    # 1. Create 2D Histogram (Binning)
-    # Automatically determine bin range and use 50x50 bins
-    max_A = np.ceil(rmsd_data[:, 0].max() * 10) / 10.0 + 0.1
-    max_B = np.ceil(rmsd_data[:, 1].max() * 10) / 10.0 + 0.1
-    bins = 50
+#     # 1. Create 2D Histogram (Binning)
+#     # Automatically determine bin range and use 50x50 bins
+#     max_A = np.ceil(rmsd_data[:, 0].max() * 10) / 10.0 + 0.1
+#     max_B = np.ceil(rmsd_data[:, 1].max() * 10) / 10.0 + 0.1
+#     bins = 50
     
-    counts, x_edges, y_edges = np.histogram2d(
-        rmsd_data[:, 0],       # RMSD Segment A (X-axis)
-        rmsd_data[:, 1],       # RMSD Segment B (Y-axis)
-        bins=bins,
-        range=[[0, max_A], [0, max_B]]
-    )
+#     counts, x_edges, y_edges = np.histogram2d(
+#         rmsd_data[:, 0],       # RMSD Segment A (X-axis)
+#         rmsd_data[:, 1],       # RMSD Segment B (Y-axis)
+#         bins=bins,
+#         range=[[0, max_A], [0, max_B]]
+#     )
 
-    # 2. Convert Counts to Probability (P)
-    # Transpose P for correct plotting orientation (x vs y)
-    P = counts.T / np.sum(counts) 
+#     # 2. Convert Counts to Probability (P)
+#     # Transpose P for correct plotting orientation (x vs y)
+#     P = counts.T / np.sum(counts) 
     
-    # 3. Calculate Free Energy (Delta G)
-    # G = -kT * ln(P/P_max)
-    P_max = P.max()
+#     # 3. Calculate Free Energy (Delta G)
+#     # G = -kT * ln(P/P_max)
+#     P_max = P.max()
     
-    # Set a small minimum probability to avoid log(0)
-    min_P = 1e-10
-    P[P < min_P] = min_P 
+#     # Set a small minimum probability to avoid log(0)
+#     min_P = 1e-10
+#     P[P < min_P] = min_P 
     
-    G = -kT * np.log(P / P_max)
+#     G = -kT * np.log(P / P_max)
 
-    # 4. Prepare coordinates for plotting (centers of the bins)
-    X_centers = (x_edges[:-1] + x_edges[1:]) / 2.0
-    Y_centers = (y_edges[:-1] + y_edges[1:]) / 2.0
+#     # 4. Prepare coordinates for plotting (centers of the bins)
+#     X_centers = (x_edges[:-1] + x_edges[1:]) / 2.0
+#     Y_centers = (y_edges[:-1] + y_edges[1:]) / 2.0
     
-    # 5. Plotting
-    plt.figure(figsize=(10, 8))
+#     # 5. Plotting
+#     plt.figure(figsize=(10, 8))
 
-    # Define contour levels (e.g., in steps of 5 kJ/mol)
-    G_max_plot = np.ceil(G.max()/5) * 5
-    levels = np.arange(0, G_max_plot, 5)
+#     # Define contour levels (e.g., in steps of 5 kJ/mol)
+#     G_max_plot = np.ceil(G.max()/5) * 5
+#     levels = np.arange(0, G_max_plot, 5)
 
-    # Plot filled contours (FEL surface)
-    CF = plt.contourf(X_centers, Y_centers, G, levels=levels, cmap='viridis_r', extend='max')
+#     # Plot filled contours (FEL surface)
+#     CF = plt.contourf(X_centers, Y_centers, G, levels=levels, cmap='viridis_r', extend='max')
 
-    # Add black contour lines for clarity
-    CS = plt.contour(X_centers, Y_centers, G, levels=levels, colors='k', linewidths=0.5)
+#     # Add black contour lines for clarity
+#     CS = plt.contour(X_centers, Y_centers, G, levels=levels, colors='k', linewidths=0.5)
     
-    # Label the contour lines
-    plt.clabel(CS, inline=1, fontsize=10, fmt='%.1f')
+#     # Label the contour lines
+#     plt.clabel(CS, inline=1, fontsize=10, fmt='%.1f')
 
-    # Add a color bar
-    cbar = plt.colorbar(CF, ticks=levels)
-    cbar.set_label(r'$\Delta G$ $(\mathrm{kJ/mol})$', fontsize=14)
+#     # Add a color bar
+#     cbar = plt.colorbar(CF, ticks=levels)
+#     cbar.set_label(r'$\Delta G$ $(\mathrm{kJ/mol})$', fontsize=14)
 
-    # Set axis labels with LaTeX formatting
-    plt.xlabel(r'$\mathrm{RMSD_{Segment\ A}}$ ($\mathrm{\AA}$)', fontsize=14)
-    plt.ylabel(r'$\mathrm{RMSD_{Segment\ B}}$ ($\mathrm{\AA}$)', fontsize=14)
+#     # Set axis labels with LaTeX formatting
+#     plt.xlabel(r'$\mathrm{RMSD_{Segment\ A}}$ ($\mathrm{\AA}$)', fontsize=14)
+#     plt.ylabel(r'$\mathrm{RMSD_{Segment\ B}}$ ($\mathrm{\AA}$)', fontsize=14)
     
-    # Set title
-    plt.title(r'Free Energy Landscape at $T = ' + f'{T}' + r'\ \mathrm{K}$', fontsize=16)
+#     # Set title
+#     plt.title(r'Free Energy Landscape at $T = ' + f'{T}' + r'\ \mathrm{K}$', fontsize=16)
     
-    plt.xlim(X_centers.min(), X_centers.max())
-    plt.ylim(Y_centers.min(), Y_centers.max())
+#     plt.xlim(X_centers.min(), X_centers.max())
+#     plt.ylim(Y_centers.min(), Y_centers.max())
 
-    plt.tight_layout()
-    plt.savefig(filename)
+#     plt.tight_layout()
+#     plt.savefig(filename)
 
 
 def main():
@@ -406,13 +356,8 @@ def main():
     
     plot_combined_population(
         final_data, 
-        filename="Combined_Protein_FEL.png"
+        filename="Combined_Protein_population_landscape.png"
     )
-    
-    plot_population_density(
-            final_data,
-            filename="Combined_Protein_Polulation_density.png"
-        )
 
     print("Done. Saved as Combined_Protein_FEL and population density figures.png")
 
