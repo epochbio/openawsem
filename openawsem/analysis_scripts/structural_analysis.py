@@ -80,14 +80,23 @@ def process_state_file(f, ref_file, selection, temp_map):
         except:
             e2e_avg = np.nan
 
-        return {
+        avg_dict = {
             'Temperature': float(temperature),
             'State': state_id,
             'Avg_RMSD': np.mean(rmsd_vals),
             'Avg_Rg': np.mean(rg_vals),
             'Avg_Q3': q3_avg,
             'Avg_E2E': e2e_avg
-        }
+            }
+        full_dict = {
+            'Temperature': float(temperature),
+            'State': state_id,
+            'RMSD': rmsd_vals,
+            'Rg': rg_vals,
+            'Q3': q3_per_frame,
+            'E2E': e2e_vals
+            }
+        return avg_dict, full_dict
 
     except Exception as e:
         return f"Error in {filename}: {str(e)}"
@@ -191,21 +200,25 @@ def main():
         task_args = [(f, args.ref, selection, temp_map) for f in files]
         results_list = pool.starmap(process_state_file, task_args)
 
-    # Filter out errors and collect data
-    valid_results = [res for res in results_list if isinstance(res, dict)]
+    valid_results = [res for res in results_list if isinstance(res, tuple)]
     errors = [res for res in results_list if isinstance(res, str)]
-    
+
     for err in errors:
-        print(err)
+        print(f"Worker Error: {err}")
 
     if valid_results:
-        df = pd.DataFrame(valid_results)
+        # Extract just the avg_dicts for the DataFrame
+        avg_list = [res[0] for res in valid_results]
+        df = pd.DataFrame(avg_list)
         df.to_csv(f"{args.name}_temperature_summary.csv", index=False)
         
-        # Generate the plots
-        plot_metrics_vs_temp(df, args.name, temp_unit=temp_unit,
-                             ref_temp=float(args.ref_temp))
-        print("Analysis complete.")
+        plot_metrics_vs_temp(df, args.name, temp_unit=temp_unit, ref_temp=float(args.ref_temp))
+
+        # 2. Extract just the full_dicts for the JSON
+        final_full_map = {res[1]['State']: res[1] for res in valid_results if 'State' in res[1]}
+
+        with open(f"{args.name}_full_data.json", "w") as out_dict:
+            json.dump(final_full_map, out_dict, indent=4) # indent makes JSON readable
 
 if __name__ == "__main__":
     main()
