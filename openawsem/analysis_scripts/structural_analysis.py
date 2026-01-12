@@ -2,6 +2,8 @@ import MDAnalysis as mda
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+import matplotlib.colors as colors
 import os
 import argparse
 import glob
@@ -158,6 +160,45 @@ def plot_metrics_vs_temp(df, base_name, temp_unit='K', ref_temp=False):
     plt.savefig(f"{base_name}_temp_trends.png", dpi=300)
     print(f"Trend plots saved as {base_name}_temp_trends.png")
 
+def plot_full_metrics(full_dict, output_name):
+    """Take the metrics dataframe and plot output graphs"""
+    # 1. Setup the figure with 5 subplots
+    fig, axes = plt.subplots(5, 1, figsize=(10, 15), sharex=False)
+    metrics = ['RMSD', 'Rg', 'Q3', 'E2E', 'RMSF']
+    titles = ['RMSD Over Time', 'Radius of Gyration (Rg) Over Time', 
+              'Q3 Folding Fraction Over Time', 'End-to-End Distance (E2E) Over Time', 
+              'RMSF per Residue']
+    
+    # 2. Setup Color Mapping based on Temperature
+    temps = [val['Temperature'] for val in full_dict.values()]
+    norm = colors.Normalize(vmin=min(temps), vmax=max(temps))
+    mapper = cm.ScalarMappable(norm=norm, cmap='viridis')
+
+    # 3. Plot data for each state
+    for state_id, data in full_dict.items():
+        temp = data['Temperature']
+        color = mapper.to_rgba(temp)
+        
+        for i, metric in enumerate(metrics):
+            y_values = data[metric]
+            # Use range(len()) as x-axis (Frame index or Residue index)
+            x_values = range(len(y_values))
+            
+            axes[i].plot(x_values, y_values, color=color, alpha=0.6, label=f"{temp}K" if i == 0 else "")
+            axes[i].set_ylabel(metric)
+            axes[i].set_title(titles[i])
+
+    # 4. Refine layout
+    axes[-1].set_xlabel("Index (Frame / Residue)")
+    
+    # Add a colorbar to show the Temperature scale
+    cbar = fig.colorbar(mapper, ax=axes, orientation='vertical', fraction=0.02, pad=0.04)
+    cbar.set_label('Temperature (K)')
+
+    plt.tight_layout(rect=[0, 0, 0.9, 1]) # Adjust for colorbar
+    plt.savefig(f"{output_name}_structural_summary.png", dpi=300)
+    plt.show()
+
 def main():
     parser = argparse.ArgumentParser(description="REMD Data Analysis: Metrics vs Temperature")
     parser.add_argument("-i", "--input_dir",
@@ -224,8 +265,9 @@ def main():
         
         plot_metrics_vs_temp(df, args.name, temp_unit=temp_unit, ref_temp=float(args.ref_temp))
 
-        # 2. Extract just the full_dicts for the JSON
+        # 2. Extract just the full_dicts for the JSON and the full plots
         final_full_map = {res[1]['State']: res[1] for res in valid_results if 'State' in res[1]}
+        plot_full_metrics(final_full_map, args.name)
 
         with open(f"{args.name}_full_data.json", "w") as out_dict:
             json.dump(final_full_map, out_dict, indent=4, cls=NumpyEncoder)
