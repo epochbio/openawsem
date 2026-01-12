@@ -82,6 +82,13 @@ def process_state_file(f, ref_file, selection, temp_map):
             traceback.print_exc()
             q3_avg = np.nan
 
+        # RMSF (Root Mean Square Fluctuation)
+        # RMSF measures the average distance a residue is from a reference position.
+        # High RMSF indicates high flexibility, often observed in unfolded or loop regions.
+        R = rms.RMSF(protein, select=selection).run()
+        # The output is per-atom, we usually look at per-residue averages or C-alpha only.
+        rmsf_data = R.results.rmsf
+
         # End-to-End Distance
         e2e_avg = 0
         try:
@@ -106,7 +113,8 @@ def process_state_file(f, ref_file, selection, temp_map):
             'RMSD': rmsd_vals,
             'Rg': rg_vals,
             'Q3': q3_per_frame,
-            'E2E': e2e_vals
+            'E2E': e2e_vals,
+            'RMSF': rmsf_data
             }
         return avg_dict, full_dict
 
