@@ -10,6 +10,16 @@ import multiprocessing as mp
 from MDAnalysis.analysis import rms, distances
 from MDAnalysis.analysis.dssp import DSSP
 
+class NumpyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        if isinstance(obj, (np.int64, np.int32, np.int16)):
+            return int(obj)
+        if isinstance(obj, (np.float64, np.float32)):
+            return float(obj)
+        return super(NumpyEncoder, self).default(obj)
+
 def process_state_file(f, ref_file, selection, temp_map):
     """
     Processes a single state file and returns structural metrics.
@@ -218,7 +228,7 @@ def main():
         final_full_map = {res[1]['State']: res[1] for res in valid_results if 'State' in res[1]}
 
         with open(f"{args.name}_full_data.json", "w") as out_dict:
-            json.dump(final_full_map, out_dict, indent=4) # indent makes JSON readable
+            json.dump(final_full_map, out_dict, indent=4, cls=NumpyEncoder)
 
 if __name__ == "__main__":
     main()
