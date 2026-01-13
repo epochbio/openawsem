@@ -25,7 +25,7 @@ cd "$TARGET_DIR"
 
 echo "Setting up folder structure..."
 # Create folders and move existing files into 01_replica_exchange
-mkdir -p 01_replica_exchange 02_heat_capacity 03_native_contact
+mkdir -p 01_replica_exchange 02_heat_capacity 03_native_contact 04_output
 # Move everything except the newly created directories into 01_replica_exchange
 find . -maxdepth 1 -not -name '0*' -not -name '.' -exec mv {} 01_replica_exchange/ \;
 
@@ -72,5 +72,12 @@ python "$OA/analysis_scripts/plot_free_energy_landscape.py" \
     -i traj \
     -r crystal_structure-openmmawsem_reference_AA.pdb \
     -tm ../../../temp_map.json -ct True
+
+# Move images to output folder
+cd ..
+cp 01_replica_exchange/output/*.png 04_output/
+cp 03_native_contact/*.png 04_output/
+cp 03_native_contact/*.json 04_output/
+cp 03_native_contact/*.csv 04_output/
 
 echo "Process complete for $PROTEIN."
