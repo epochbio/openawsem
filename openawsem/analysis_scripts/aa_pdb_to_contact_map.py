@@ -216,8 +216,8 @@ def process_trajectory_for_contact_frequency(movie_file_path: str, output_dir: s
         normalized_matrix = native_count_matrix
         normalized_all_matrix = all_count_matrix
 
-    plot_lower_triangle_heatmap(normalized_matrix, temperature, output_dir)
-    plot_lower_triangle_heatmap(normalized_all_matrix, f'{temperature}_all', output_dir)
+    plot_heatmap(normalized_matrix, temperature, output_dir)
+    plot_heatmap(normalized_all_matrix, f'{temperature}_all', output_dir)
 
 def main():
     parser = argparse.ArgumentParser(
