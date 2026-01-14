@@ -3,6 +3,7 @@ import io
 import sys
 import glob
 import argparse
+import json
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import numpy as np
@@ -98,36 +99,29 @@ def get_reference_native_contacts(native_pdb_file: str, MAX_OFFSET: int = 4, DIS
     
     return native_contacts_table # This is the N_native binary matrix
 
-def plot_lower_triangle_heatmap(matrix: np.ndarray, base_name: str, output_dir: str):
+def plot_heatmap(matrix: np.ndarray, base_name: str, output_dir: str):
     """Plots the lower triangle of the contact frequency map."""
     
     N = matrix.shape[0]
     
     plt.figure(figsize=(8, 8))
     
-    # Define a colormap for N_ij / N_max (Lower Triangle - typically blue to red/green scale)
-    cmap = 'viridis' # Use a simple continuous map for now
+    # Define a colormap for N_ij / N_max
+    cmap = 'coolwarm' # Use a simple continuous map for now
     norm = mcolors.Normalize(vmin=0, vmax=1) # Normalized from 0 (never present) to 1 (always present)
     
-    # Create a mask for the upper triangle and diagonal (we only want j < i)
-    mask = np.triu(np.ones((N, N), dtype=bool))
-    data_lower = np.ma.masked_where(mask, matrix)
-    
     # Plot the masked data
-    plt.imshow(data_lower, cmap=cmap, norm=norm, origin='lower')
+    plt.imshow(matrix, cmap=cmap, norm=norm, origin='upper')
     
     # Add a color bar
     cbar = plt.colorbar(shrink=0.8, pad=0.05)
     cbar.set_label(r'$N_{ij} / N_{max}$ (Contact Frequency)') 
     
-    # Add separating diagonal line
-    plt.plot([0, N-1], [0, N-1], color='white', linewidth=3)
-    
     plt.xlabel('Residue i')
     plt.ylabel('Residue j')
-    plt.title(f'Contact Frequency Map ({base_name}) - Lower Triangle')
+    plt.title(f'Contact Frequency Map ({base_name} ˚C)')
     
-    plt.savefig(os.path.join(output_dir, f"{base_name}_contact_frequency_lower_triangle.png"), dpi=300)
+    plt.savefig(os.path.join(output_dir, f"{base_name}_contact_frequency.png"), dpi=300)
     plt.close()
 
 
@@ -149,13 +143,21 @@ def extract_coords_from_structure(s: object) -> np.ndarray:
     return np.array(coords)
 
 
-def process_trajectory_for_contact_frequency(movie_file_path: str, output_dir: str, N_native: np.ndarray):
+def process_trajectory_for_contact_frequency(movie_file_path: str, output_dir: str, N_native: np.ndarray, temp_map: dict):
     """
     Processes a multi-frame PDB, calculates the persistence frequency of each native 
     contact over the entire trajectory, and plots the result.
     """
     
-    base_name = os.path.basename(movie_file_path).replace(".pdb", "")
+    try:
+        base_name = os.path.basename(movie_file_path).replace(".pdb", "")
+        state_id = base_name.split('_')[1]
+        temperature = temp_map.get(state_id) or temp_map.get(int(state_id))
+
+        if temperature is None:
+            return f"Error: State {state_id} not found in JSON temp map."
+    except:
+        return f"Error: Could not parse state ID from {movie_file_path}"
     
     # 1. Initialization
     N_residues = N_native.shape[0]
@@ -164,7 +166,8 @@ def process_trajectory_for_contact_frequency(movie_file_path: str, output_dir: s
     total_frames = 0
     p = PDBParser()
 
-    print(f"Starting simple contact frequency analysis for: {base_name}...")
+    print(f"Starting simple contact frequency analysis for: {base_name}," \
+          f" Temperature: {temperature}...")
 
     # 2. Iterate through frames
     try:
@@ -213,15 +216,15 @@ def process_trajectory_for_contact_frequency(movie_file_path: str, output_dir: s
         normalized_matrix = native_count_matrix
         normalized_all_matrix = all_count_matrix
 
-    plot_lower_triangle_heatmap(normalized_matrix, base_name, output_dir)
-    plot_lower_triangle_heatmap(normalized_all_matrix, f'{base_name}_all', output_dir)
+    plot_lower_triangle_heatmap(normalized_matrix, temperature, output_dir)
+    plot_lower_triangle_heatmap(normalized_all_matrix, f'{temperature}_all', output_dir)
 
 def main():
     parser = argparse.ArgumentParser(
         description="Calculate, plot, and save native contact frequency for all multi-frame PDBs matching replica*AA.pdb or an alternative pdb pattern, in a specified folder."
     )
     parser.add_argument("folder_path",
-                        help="The folder containing the replica*AA.pdb multi-frame files.")
+                        help="The folder containing the state*AA.pdb multi-frame files.")
     parser.add_argument("native_pdb",
                         help="The path to the single reference native PDB file (e.g., 2xov.pdb).")
     parser.add_argument("-j", "--jobs",
@@ -233,8 +236,19 @@ def main():
                            help="Output folder to save plots, default native_contacts")
     parser.add_argument("-pp",
                         "--pdb_pattern",
-                        default="replica*AA.pdb",
-                        help="pattern to search for PDBs for. Default='replica*AA.pdb'")
+                        default="state*AA.pdb",
+                        help="pattern to search for PDBs for. Default='state*AA.pdb'")
+    parser.add_argument("-tm", "--temp_map",
+                        required=True,
+                        help="JSON file mapping state IDs to Temperatures")
+    parser.add_argument("-ct",
+                        "--convert_temp",
+                        type=bool, default=False,
+                        help="Set to True to convert temperature units from K to C by subtracting 273")
+    parser.add_argument("-rt",
+                    "--ref_temp",
+                    default=False,
+                    help="Value to use for reference temperatures in plots")
 
     args = parser.parse_args()
     input_folder = args.folder_path
@@ -242,6 +256,17 @@ def main():
     num_processes = args.jobs
     output_folder = args.output_path
     pdb_pattern = args.pdb_pattern
+
+        # Load Temperature Map
+    with open(args.temp_map, 'r') as f:
+        temp_map = json.load(f)
+
+    temp_unit = 'K' # default unit is Kelvin
+    if args.convert_temp:
+        # Remove 273 to convert to celsius.
+        for id, temp in temp_map.items():
+            temp_map[id] = temp - 273
+        temp_unit = 'C'
 
     # --- 1. INITIALIZATION: Get the static N_native matrix ---
     try:
@@ -273,7 +298,7 @@ def main():
     try:
         # Prepare arguments: (file_path, output_dir, N_native_reference)
         # N_native_reference is the same static array for every process
-        task_args = [(f, output_folder, N_native_reference) for f in pdb_files]
+        task_args = [(f, output_folder, N_native_reference, temp_map) for f in pdb_files]
         
         with mp.Pool(processes=num_processes) as pool:
             # Note: numpy arrays are efficiently pickled/passed to the pool workers
