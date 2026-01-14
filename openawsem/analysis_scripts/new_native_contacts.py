@@ -167,6 +167,29 @@ def plot_contact_totals(results: list, output_dir: str, ref_temp: float):
     plt.savefig(os.path.join(output_dir, "contacts_vs_temperature.png"))
     plt.close()
 
+def plot_single_summed_heatmap(results: list, output_dir: str, contact_type: str):
+    """Plots a single heatmap summing frequency across all temperatures."""
+    key = 'freq_native' if contact_type == 'Native' else 'freq_all'
+    
+    # Initialize zero matrix based on first result
+    summed_matrix = np.zeros_like(results[0][key])
+    
+    for res in results:
+        summed_matrix += res[key]
+    
+    # Normalize by the number of temperatures to get the global average frequency
+    avg_matrix = summed_matrix / len(results)
+    
+    plt.figure(figsize=(10, 8))
+    plt.imshow(avg_matrix, cmap='viridis', origin='upper', vmin=0, vmax=1)
+    plt.colorbar(label='Average Contact Frequency (Across All Temps)')
+    plt.title(f'Global Average {contact_type} Contact Frequency')
+    plt.xlabel('Residue i')
+    plt.ylabel('Residue j')
+    
+    plt.savefig(os.path.join(output_dir, f"global_average_{contact_type.lower()}_heatmap.png"), dpi=300)
+    plt.close()
+
 # --- MAIN ---
 
 def main():
@@ -208,9 +231,14 @@ def main():
         return
 
     # Generate the new combined plots
-    print("Generating summary plots...")
-    plot_combined_heatmaps(results, args.output_path, "Native")
-    plot_combined_heatmaps(results, args.output_path, "All")
+    # print("Generating summary plots...")
+    # plot_combined_heatmaps(results, args.output_path, "Native")
+    # plot_combined_heatmaps(results, args.output_path, "All")
+
+    print("Generating Global Average Heatmaps...")
+    plot_single_summed_heatmap(results, args.output_path, "Native")
+    plot_single_summed_heatmap(results, args.output_path, "All")
+
     plot_contact_totals(results, args.output_path, args.ref_temp)
     print(f"Done. Outputs saved to {args.output_path}")
 
