@@ -70,8 +70,7 @@ python "$OA/analysis_scripts/structural_analysis.py" \
 # Population landscape
 python "$OA/analysis_scripts/plot_free_energy_landscape.py" \
     -i traj \
-    -r crystal_structure-openmmawsem_reference_AA.pdb \
-    -tm ../../../temp_map.json -ct True
+    -r crystal_structure-openmmawsem_reference_AA.pdb
 
 # Move images to output folder
 cd ..
