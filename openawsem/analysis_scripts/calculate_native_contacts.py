@@ -171,8 +171,13 @@ def plot_single_summed_heatmap(results: list,
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("folder_path")
-    parser.add_argument("native_pdb")
+    parser.add_argument("-i", "--input_dir",
+                        required=True,
+                        help="Path to directory containing state all-atom PDBs")
+    parser.add_argument("-r",
+                        "--ref",
+                        default="native_structure.pdb",
+                        help="PDB for reference native contacts")
     parser.add_argument("-n","--name", required=True,
                         help="File prefix to save files with")
     parser.add_argument("-o", "--output_path", default="native_contacts")
@@ -189,12 +194,12 @@ def main():
     if args.convert_temp:
         temp_map = {k: v - 273 for k, v in temp_map.items()}
 
-    N_native_reference = get_reference_native_contacts(args.native_pdb)
+    N_native_reference = get_reference_native_contacts(args.ref)
     
     if not os.path.exists(args.output_path):
         os.makedirs(args.output_path)
 
-    pdb_files = glob.glob(os.path.join(args.folder_path, args.pdb_pattern))
+    pdb_files = glob.glob(os.path.join(args.input_dir, args.pdb_pattern))
     
     print(f"Processing {len(pdb_files)} files...")
     task_args = [(f, N_native_reference, temp_map) for f in pdb_files]

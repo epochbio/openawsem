@@ -72,10 +72,20 @@ python "$OA/analysis_scripts/plot_free_energy_landscape.py" \
     -i traj \
     -r crystal_structure-openmmawsem_reference_AA.pdb
 
+# Native contacts
+python "$OA/analysis_scripts/calculate_native_contacts.py" \
+    --input_dir traj \
+    --temp_map ../../../temp_map.json \
+    --name "$PROTEIN" \
+    --ref crystal_structure-openmmawsem_reference_AA.pdb \
+    -ct -rt "$REF_TEMP" \
+    -o "native_contacts"
+
 # Move images to output folder
 cd ..
 cp 01_replica_exchange/output/*.png 04_output/
 cp 03_native_contact/*.png 04_output/
+cp 03_native_contact/native_contacts/*.png 04_output/
 cp 03_native_contact/*.json 04_output/
 cp 03_native_contact/*.csv 04_output/
 
