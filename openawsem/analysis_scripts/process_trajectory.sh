@@ -65,7 +65,7 @@ python "$OA/analysis_scripts/structural_analysis.py" \
     --temp_map ../../../temp_map.json \
     --name "$PROTEIN" \
     --ref crystal_structure-openmmawsem_reference_AA.pdb \
-    -ct True -rt "$REF_TEMP"
+    -ct -rt "$REF_TEMP"
 
 # Population landscape
 python "$OA/analysis_scripts/plot_free_energy_landscape.py" \

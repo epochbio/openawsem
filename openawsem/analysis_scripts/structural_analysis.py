@@ -227,7 +227,7 @@ def main():
                         default=mp.cpu_count())
     parser.add_argument("-ct",
                         "--convert_temp",
-                        type=bool, default=False,
+                        action='store_true',
                         help="Set to True to convert temperature units from K to C by subtracting 273")
     parser.add_argument("-rt",
                     "--ref_temp",
