@@ -112,34 +112,9 @@ def process_trajectory_for_contact_frequency(movie_file_path: str, N_native: np.
     }
 
 
-def plot_combined_heatmaps(results: list, output_dir: str, contact_type: str):
-    """Plots a single figure with heatmaps for all temperatures."""
-    # Sort by temperature
-    results.sort(key=lambda x: x['temp'])
-    num_temps = len(results)
-    
-    cols = 4
-    rows = (num_temps // cols) + (1 if num_temps % cols != 0 else 0)
-    
-    fig, axes = plt.subplots(rows, cols, figsize=(cols*4, rows*4), constrained_layout=True)
-    axes = axes.flatten()
-    
-    key = 'freq_native' if contact_type == 'Native' else 'freq_all'
-    
-    for i, res in enumerate(results):
-        im = axes[i].imshow(res[key], cmap='coolwarm', vmin=0, vmax=1)
-        axes[i].set_title(f"Temp: {res['temp']}")
-        
-    # Hide unused axes
-    for j in range(i + 1, len(axes)):
-        axes[j].axis('off')
-        
-    fig.colorbar(im, ax=axes, shrink=0.6, label='Contact Frequency')
-    fig.suptitle(f'Combined {contact_type} Contact Frequency Maps', fontsize=16)
-    plt.savefig(os.path.join(output_dir, f"combined_{contact_type.lower()}_contacts.png"))
-    plt.close()
-
-def plot_contact_totals(results: list, output_dir: str, ref_temp: float):
+def plot_contact_totals(results: list,
+                        name:str,
+                        output_dir: str, ref_temp: float):
     """Plots Number of Contacts vs Temperature."""
     results.sort(key=lambda x: x['temp'])
     temps = [r['temp'] for r in results]
@@ -149,12 +124,12 @@ def plot_contact_totals(results: list, output_dir: str, ref_temp: float):
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
 
     ax1.plot(temps, native_totals, 'o-', color='blue')
-    ax1.set_title("Average Native Contacts")
+    ax1.set_title("Native Contacts")
     ax1.set_xlabel("Temperature")
     ax1.set_ylabel("Count")
 
     ax2.plot(temps, all_totals, 'o-', color='red')
-    ax2.set_title("Average Total Contacts")
+    ax2.set_title("Total Contacts")
     ax2.set_xlabel("Temperature")
     ax2.set_ylabel("Count")
 
@@ -164,10 +139,12 @@ def plot_contact_totals(results: list, output_dir: str, ref_temp: float):
             ax.legend()
 
     plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, "contacts_vs_temperature.png"))
+    plt.savefig(os.path.join(output_dir, f"{name}_contacts_vs_temperature.png"))
     plt.close()
 
-def plot_single_summed_heatmap(results: list, output_dir: str, contact_type: str):
+def plot_single_summed_heatmap(results: list,
+                               name: str,
+                               output_dir: str, contact_type: str):
     """Plots a single heatmap summing frequency across all temperatures."""
     key = 'freq_native' if contact_type == 'Native' else 'freq_all'
     
@@ -187,7 +164,7 @@ def plot_single_summed_heatmap(results: list, output_dir: str, contact_type: str
     plt.xlabel('Residue i')
     plt.ylabel('Residue j')
     
-    plt.savefig(os.path.join(output_dir, f"global_average_{contact_type.lower()}_heatmap.png"), dpi=300)
+    plt.savefig(os.path.join(output_dir, f"{name}_global_average_{contact_type.lower()}_heatmap.png"), dpi=300)
     plt.close()
 
 # --- MAIN ---
@@ -196,12 +173,14 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("folder_path")
     parser.add_argument("native_pdb")
-    parser.add_argument("-j", "--jobs", type=int, default=mp.cpu_count())
+    parser.add_argument("-n","--name", required=True,
+                        help="File prefix to save files with")
     parser.add_argument("-o", "--output_path", default="native_contacts")
     parser.add_argument("-pp", "--pdb_pattern", default="state*AA.pdb")
     parser.add_argument("-tm", "--temp_map", required=True)
     parser.add_argument("-ct", "--convert_temp", action='store_true')
     parser.add_argument("-rt", "--ref_temp", default=None)
+    parser.add_argument("-j", "--jobs", type=int, default=mp.cpu_count())
 
     args = parser.parse_args()
     
@@ -236,10 +215,10 @@ def main():
     # plot_combined_heatmaps(results, args.output_path, "All")
 
     print("Generating Global Average Heatmaps...")
-    plot_single_summed_heatmap(results, args.output_path, "Native")
-    plot_single_summed_heatmap(results, args.output_path, "All")
+    plot_single_summed_heatmap(results, args.name, args.output_path, "Native")
+    plot_single_summed_heatmap(results, args.name, args.output_path, "All")
 
-    plot_contact_totals(results, args.output_path, args.ref_temp)
+    plot_contact_totals(results, args.name, args.output_path, args.ref_temp)
     print(f"Done. Outputs saved to {args.output_path}")
 
 if __name__ == "__main__":
